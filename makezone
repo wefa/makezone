@@ -688,25 +688,24 @@ sub unpick_args {
 			$v6addr =~ s/\./:/g;
 			$v6addr .= "::";
 
-			$rzone6_addr[$rzone6_count] =
-			  substr format_v6_reverse( parse_v6 $v6addr),
-			  -( 2 * ( $prefixlen / 4 ) - 1 );
+			$rzone6_prefix[$rzone6_count] = [parse_v6 $v6addr];
+			$rzone6_prefixlen[$rzone6_count] = $prefixlen;
 			++$rzone6_count;
 		}
 		else {
 			$rzone_file[$rzone_count] = $rzone;
 
-	   # Check explicitly for a class A, class B or a class C number. I couldn't
-	   # find a cunning way of writing a single regular expression that
-	   # handled this. Anyway, we need to differentiate in order to check
-	   # the values.
+			# Check explicitly for a class A, class B or a class C number. I couldn't
+			# find a cunning way of writing a single regular expression that
+			# handled this. Anyway, we need to differentiate in order to check
+			# the values.
 
-	  # Here we add support for a 5-octet-form: 4 octet net number and the
-	  # fifth giving the number of bits in the subnet mask. This is to support
-	  # non-traditional net/mask combinations that get more and more common
-	  # with CIDR. For this purpose we also add the rzone_mask array for storing
-	  # the zone mask and rzone_mask_length for storing the mask length;
-	  # Also the complete handling of the arguments is reworked. (CWF)
+			# Here we add support for a 5-octet-form: 4 octet net number and the
+			# fifth giving the number of bits in the subnet mask. This is to support
+			# non-traditional net/mask combinations that get more and more common
+			# with CIDR. For this purpose we also add the rzone_mask array for storing
+			# the zone mask and rzone_mask_length for storing the mask length;
+			# Also the complete handling of the arguments is reworked. (CWF)
 
 			# the 0 + construct to force perl to assume a scalar context.
 			my ($i) = 0 + ( my @split = split( /\./, $rzone, 7 ) );
