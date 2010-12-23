@@ -661,11 +661,11 @@ sub format_v6_reverse_inzone {
 	{
 		if($prefixlen == 0)
 		{
-			return substr $s, (($subprefixlen / 4) * 2) - 1;
+			return substr $s, (($subprefixlen / 4) * 2);
 		}
 		else
 		{
-			return substr $s, (($subprefixlen / 4) * 2) - 1, -(($prefixlen / 4) * 2);
+			return substr $s, (($subprefixlen / 4) * 2), -(($prefixlen / 4) * 2);
 		}
 	}
 }
