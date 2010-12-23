@@ -1,6 +1,6 @@
-#!/usr/local/bin/perl
+#!/usr/bin/perl
 
-$version_number = "0.22d [13-JAN-04]";
+$version_number = "0.22h [22-JUN-10]";
 
 # This script was developed using Perl 4.036. It has now been converted
 # to Perl 5.002. If you want to run it under Perl 4, you need to delete
@@ -55,6 +55,7 @@ $version_number = "0.22d [13-JAN-04]";
 # letters, digits, and hyphens, and not end with a hyphen.
 
 #$name_pattern = '[a-zA-Z]([a-zA-Z\\-\\d]*[a-zA-Z\\d]+)?';
+#$name_pattern = '[a-zA-Z_]([a-zA-Z\\-_\\d]*[a-zA-Z\\d]+)?';
 $name_pattern = '[a-zA-Z_]([a-zA-Z\\-_\\d]*[a-zA-Z\\d]+)?';
 
 # Possible variations:
@@ -122,7 +123,11 @@ $create_delegated_subnet_cnames = 1;
 # $postprocess_command;
 
 $postprocess_zonefiles = 1;
-$postprocess_command = "/usr/xpg4/bin/awk -f beautify.awk";
+#$postprocess_command = "/usr/xpg4/bin/awk -f beautify.awk";
+$postprocess_command = "/usr/bin/awk -f beautify.awk";
+
+# allow wildcards of all types. If zero, only MX wildcards are possible
+$all_wildcards = 1;
 
 ########################################################################
 # UNIX DEPENDENCIES
@@ -424,6 +429,9 @@ $postprocess_command = "/usr/xpg4/bin/awk -f beautify.awk";
 #   United Kingdom
 #   +44 1223 334714
 #
+# Enhancements for non-octet subnet masks and some minor 
+# changes by Christoph Weber-Fahr <wefa@gmx.de>
+#
 # Started: August 1993
 # Running: September 1993
 #
@@ -470,7 +478,10 @@ $postprocess_command = "/usr/xpg4/bin/awk -f beautify.awk";
 #		      Imported $TTL handling from Phil Hazel's makezone-0.33
 #   0.22d CWF Jan-04  Fixed newline handling with trailing comments,
 #		      fixed PTR network check
-#
+#   0.22e CWF Aug-04  Extended SRV Support for equally rudimentary NAPTR support
+#   0.22f CWF Dec-04  Fixed bug with zero-record files
+#   0.22g CWF Apr-08  Added Wildcards of all types
+#   0.22h CWF Jun-10  permitted wildcard consisting of "*" only
 #
 
 
@@ -614,7 +625,7 @@ while ($#ARGV >= 0)
   # the values.
 
   # Here we add support for a 5-octet-form: 4 octet net number and the
-  # fith giving the number of bits in the subnet mask. This is to support
+  # fifth giving the number of bits in the subnet mask. This is to support
   # non-traditional net/mask combinations that get more and more common
   # with CIDR. For this purpose we also add the rzone_mask array for storing
   # the zone mask and rzone_mask_length for storing the mask length;
@@ -963,15 +974,16 @@ if ($name eq "@")
   $name = "$zone_name.";
   $printname = $name if (substr($printname, 0, 1) ne " ");
   }
-elsif ($name =~ /^\*\./)
+elsif ($name =~ /^\*/)
   {
-  if ($name !~ /^\*\.$name_pattern(\.$name_pattern)*$/o)
+  if ($name !~ /^\*(\.$name_pattern)*$/o)
     {
     &error("invalid wildcard name field\n".
              "** (or other components do not match name pattern).");
-    $name = $lastname = "dummy";     # prevent subsequent errors
+ 
+   $name = $lastname = "dummy";     # prevent subsequent errors
     }
-  elsif ($type ne "MX")
+  elsif (($type ne "MX") && ($all_wildcards == 0))
     {
     &error("wildcard names are permitted only on MX records.");
     $name = $lastname = "dummy";     # prevent subsequent errors
@@ -994,9 +1006,14 @@ elsif ($name =~ /^\d{1,3}(\/\d{1,2})?(\.\d{1,3})*$/)
   }
 elsif ($name !~ /^$name_pattern(\.$name_pattern)*$/o)
   {
-  &error("invalid name field (components do not match name pattern).");
-  $name = $lastname = "dummy";     # prevent subsequent errors
+    # we ignore name pattern checks for srv and naptr records [CWF]
+    if (($type ne "SRV") && ($type ne "NAPTR"))
+    {
+    &error("invalid name field (components do not match name pattern).");
+    $name = $lastname = "dummy";     # prevent subsequent errors
+    }
   }
+
   
 
 
@@ -1195,7 +1212,7 @@ if ($type eq "CNAME")
   return;
   }
 
-# Type SRV -- right now we just copy it to output
+# Type SRV -- right now we just copy it to output [CWF]
 
 if ($type eq "SRV")
   {
@@ -1204,6 +1221,13 @@ if ($type eq "SRV")
   } 
 
 
+# Type NAPTR -- right now we just copy it to output as well [CWF - AUG 04]
+
+if ($type eq "NAPTR")
+  {
+  print FORWARD "$name  $ttl $class  NAPTR  $rest\n";
+  return
+  }
 
 
 # Type PTR - pointer to entity elsewhere in the DNS; used only
@@ -1628,7 +1652,7 @@ $names{"$zone_name."} = $used_other;
 $nline--;
 for (;;)
   {
-  $_ = <SOURCE>;
+  last if ! ( $_ = <SOURCE> );
   $nline++;
   if (/^;/) { &handle_comment(); next; }
   next if /^\s*$/;
