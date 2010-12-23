@@ -541,7 +541,8 @@ sub error {
 my $rzone_count       = 0;
 my $rzone6_count      = 0;
 my @rzone6_file       = ();
-my @rzone6_addr       = ();
+my @rzone6_prefix     = ();
+my @rzone6_prefixlen  = ();
 my @rzone6_handle     = ();
 my @rzone_file        = ();
 my @rzone_mask        = ();
@@ -610,22 +611,74 @@ sub format_v6_forward {
 	return sprintf "%x:%x:%x:%x:%x:%x:%x:%x", @addr;
 }
 
-sub format_v6_reverse {
-	my (@addr) = @_;
-	return join '.', split //,
-	  reverse sprintf "%04x%04x%04x%04x%04x%04x%04x%04x", @addr;
+sub match_prefix_v6 {
+	my ( $addr, $net, $prefixlen ) = @_;
+	my $different = 0;
+	for(0..7) {
+		my $a = $addr->[$_];
+		my $n = $net->[$_];
+		$different ||= ($a != $n);
+		my $cbits = $prefixlen - 32 * $_;
+		$cbits = 31 if $cbits > 31;
+		$cbits = 0 if $cbits < 0;
+		next if $cbits == 0;
+		if($cbits < 31)
+		{
+			$a >>= (31 - $cbits);
+			$n >>= (31 - $cbits);
+		}
+		return 0 if $a != $n;
+	}
+	return $different ? 1 : 2; # 2 means equal
+}
+
+# format a v6 address as part of a given reverse zone (prefix, prefixlen)
+# currently this supports only %4 zones!
+sub format_v6_reverse_inzone {
+	my ($subprefix, $subprefixlen, $prefix, $prefixlen) = @_;
+	&error("Invalid prefixlen $prefixlen")
+		if $prefixlen < 0 || $prefixlen > 128;
+	&error("Invalid subprefixlen $subprefixlen")
+		if $subprefixlen < 0 || $subprefixlen > 128;
+	&error("$subprefixlen not inside the prefix $prefixlen")
+		if $subprefixlen < $prefixlen || !match_prefix_v6($subprefix, $prefix, $prefixlen);
+	&error("currently no support for more than 4 bits granularity")
+		if $prefixlen % 4 || $subprefixlen % 4;
+	my $s = join '.', split //,
+	  reverse sprintf "%04x%04x%04x%04x%04x%04x%04x%04x", @$subprefix;
+	if($subprefixlen == 128)
+	{
+		if($prefixlen == 0)
+		{
+			return $s;
+		}
+		else
+		{
+			return substr $s, 0, -(($prefixlen / 4) * 2);
+		}
+	}
+	else
+	{
+		if($prefixlen == 0)
+		{
+			return substr $s, (($subprefixlen / 4) * 2) - 1;
+		}
+		else
+		{
+			return substr $s, (($subprefixlen / 4) * 2) - 1, -(($prefixlen / 4) * 2);
+		}
+	}
 }
 
 sub find_zone_v6 {
 	my ( $subnet, @addr ) = @_;
-	my ($net) = format_v6_reverse @addr;
-	my ( $rzone6, $mask );
+	my ( $rzone6 );
 
 	for ( $rzone6 = 0 ; $rzone6 < $rzone6_count ; $rzone6++ ) {
-		my $a = $rzone6_addr[$rzone6];
+		my $cmp = match_prefix_v6 \@addr, $rzone6_prefix[$rzone6], $rzone6_prefixlen[$rzone6];
 		last
-		  if ( $net =~ /$a$/ )
-		  && ( ( $subnet == 0 ) || ( $net !~ /^[0:]*$a$/ ) );
+		  if $cmp
+		  && ( ( $subnet == 0 ) || ( $cmp != 2 ) );
 	}
 
 	return $rzone6;
@@ -1300,8 +1353,7 @@ sub handle_record {
 
 				# modified to support CIDR-Style networks
 				my ($handle) = $rzone6_handle[$rzone];
-				my ($e)      = length $rzone6_addr[$rzone];
-				print $handle substr( format_v6_reverse(@addr), 0, 62 - $e );
+				print $handle format_v6_reverse_inzone(\@addr, 128, $rzone6_prefix[$rzone], $rzone6_prefixlen[$rzone]);
 				print $handle "  $ttl  $class  PTR  $name";
 				print $handle ".$zone_name."
 				  if ( substr( $name, -1, 1 ) ne "." );
@@ -1380,9 +1432,7 @@ sub handle_record {
 				}
 				else {
 					my ($handle) = $rzone6_handle[$rzone];
-					my ($e)      = length $rzone6_addr[$rzone];
-					print $handle
-					  substr( format_v6_reverse(@addr), 0, 62 - $e );
+					print $handle format_v6_reverse_inzone(\@addr, 128, $rzone6_prefix[$rzone], $rzone6_prefixlen[$rzone]);
 					print $handle "  $ttl  $class  PTR  $rest";
 					print $handle ".$zone_name."
 					  if ( substr( $rest, -1, 1 ) ne "." );
@@ -1503,23 +1553,13 @@ sub handle_record {
 			my @addr = parse_v6 $addr;
 
 			$rzone = &find_zone_v6( 1, @addr );
-			my ($e) = 2 * ( $prefixlen / 4 ) - 1;
 
 			if ( $rzone >= $rzone6_count ) {
 				&error("$addr/$prefixlen is not a subnet of a known network.");
 			}
-			elsif ( $prefixlen <= 0 || $prefixlen >= 128 || $prefixlen % 4 ) {
-				&error(
-"delegation $addr/$prefixlen: only lengths above 0, below 128, divisible by 4 are supported"
-				);
-			}
-			elsif ( ( $r_e = length( $rzone6_addr[$rzone] ) ) >= $e ) {
-				&error("$addr is not a legal subnet of a known network.");
-			}
 			else {
 				my ($handle) = $rzone6_handle[$rzone];
-				my ($subnet) = substr format_v6_reverse(@addr), 63 - $e,
-				  $e - $r_e - 1;
+				my $subnet = format_v6_reverse_inzone(\@addr, $prefixlen, $rzone6_prefix[$rzone], $rzone6_prefixlen[$rzone]);
 				print $handle "$subnet  $ttl  $class  NS  $rest\n";
 			}
 		}
@@ -1845,11 +1885,9 @@ sub generate_zones {
 						|| $prefixlen <= 0
 						|| $prefixlen >= 128 );
 					my @addr   = parse_v6 $1;
-					my $prefix = substr format_v6_reverse(@addr),
-					  2 * $prefixlen - 1;
 					{
 						for ( $i = 0 ; $i < $rzone6_count ; $i++ ) {
-							if ( $rzone6_addr[$i] eq $prefix ) {
+							if ( $prefixlen == $rzone6_prefixlen[$i] && match_prefix_v6 \@addr, $rzone6_prefix[$i], 128 ) {
 								my ($handle) = $rzone6_handle[$i];
 								print $handle "  $ttl  $class  NS  $ns\n";
 								last;
