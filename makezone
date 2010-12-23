@@ -1539,6 +1539,11 @@ sub handle_record {
 				( $b, $a ) = $name =~ /^(\d{1,3})\.(\d{1,3})$/;
 			}
 
+			if ( $cidr_extension && !($e % 8) ) {
+				&error("subnet $name on NS record must be specified without netmask (no CIDR delegation)");
+				return;
+			}
+
 			if ( $a eq "" ) {
 				&error("subnet $name on NS record is invalid.");
 				return;
