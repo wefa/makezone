@@ -1,7 +1,7 @@
 ; Domainsource lab.example.org
 $TTL 300
 @	300	IN	SOA	login.lab.example.org. me.lab.example.org. (
-				2010122303	;serial
+				2010122308	;serial
 				60		;Refresh
 				30		;Retry
 				604800		;Expire
@@ -9,3 +9,9 @@ $TTL 300
 ;
 		IN	NS	ns1.lab.example.org.
 		IN	NS	ns2.lab.example.org.
+
+foo		IN	A	192.0.2.1
+bar		IN	A	192.0.2.2
+
+sub		IN	NS	subns.lab.example.org.
+16/28.2.0.192	IN	NS	subns.lab.example.org.
