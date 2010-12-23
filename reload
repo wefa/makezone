@@ -1,0 +1,3 @@
+#!/bin/sh
+#kill -HUP `cat /var/run/named.pid`
+/usr/sbin/rndc reload
