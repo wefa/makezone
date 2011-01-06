@@ -733,6 +733,11 @@ sub find_zone_v6 {
 
 my $zone_name;
 my $forward_file;
+my $forward_handle;
+
+my @zone_names = ();
+my @forward_files = ();
+my @forward_handles = ();
 
 sub unpick_args {
 	$rzone_count  = 0;
@@ -758,13 +763,13 @@ sub unpick_args {
 	# The second argument is the zone name; remove the trailing dot
 	# if present.
 
-	$zone_name = $ARGV[0];
+	$zone_names[0] = $ARGV[0];
 	shift @ARGV;
-	chop($zone_name) if ( substr( $zone_name, -1, 1 ) eq "." );
+	chop($zone_names[0]) if ( substr( $zone_names[0], -1, 1 ) eq "." );
 
 	# The third argument is the forwards zone file
 
-	$forward_file = $ARGV[0];
+	$forward_files[0] = $ARGV[0];
 	shift @ARGV;
 
 	# We now have zero or more reverse zone files
@@ -873,6 +878,10 @@ sub unpick_args {
 			$rzone_mask_length[ $rzone_count++ ] = $e;
 		}
 	}
+
+	$zone_name = $zone_names[0];
+	$forward_file = $forward_files[0];
+	$forward_handle = $forward_handles[0];
 }
 
 ##################################################
@@ -990,7 +999,7 @@ sub update_serial {
 
 sub handle_comment {
 	if (/^;F /) {
-		printf FORWARD "; %s", substr( $_, 3 );
+		printf $forward_handle "; %s", substr( $_, 3 );
 	}
 	elsif (/^;R /) {
 		&print_reverse( join( "", "; ", substr( $_, 3 ) ) );
@@ -1166,6 +1175,15 @@ sub handle_record {
 	# MX records for their entire zone, and we allow the first component of
 	# names on MX records to be "*".
 
+	my $zone_name = $zone_names[0];
+	for my $zi(0..@zone_names-1) {
+		my $zn = $zone_names[$zi];
+		if($name =~ s/\.\Q$zn\E\.$//) {
+			$zone_name = $zn;
+			last;
+		}
+	}
+
 	if ( $name eq "@" ) {
 		$name = "$zone_name.";
 		$printname = $name if ( substr( $printname, 0, 1 ) ne " " );
@@ -1242,7 +1260,7 @@ sub handle_record {
 		if ( $rest !~ /^\".*\"\s*(;.*)?$/ ) {
 			&error("malformed TXT record - must use double quotes.");
 		}
-		print FORWARD "$printname  $ttl  $class  TXT  $rest";
+		print $forward_handle "$printname  $ttl  $class  TXT  $rest";
 		$names{"$name"} = $used_other if $names{"$name"};
 		return;
 	}
@@ -1324,7 +1342,7 @@ sub handle_record {
 
 		# Output the A record to the forward file, unless reverse-only record.
 
-		print FORWARD "$printname  $ttl  $class  A  $rest\n" if !$reverse_only;
+		print $forward_handle "$printname  $ttl  $class  A  $rest\n" if !$reverse_only;
 
 		# If required, generate a PTR record for the reverse file. Check for
 		# multiples, and complain unless the record is flagged as such.
@@ -1393,7 +1411,7 @@ sub handle_record {
 
 		# Output the A record to the forward file, unless reverse-only record.
 
-		print FORWARD "$printname  $ttl  $class  AAAA  $addr_normalized\n"
+		print $forward_handle "$printname  $ttl  $class  AAAA  $addr_normalized\n"
 		  if !$reverse_only;
 
 		# If required, generate a PTR record for the reverse file. Check for
@@ -1437,7 +1455,7 @@ sub handle_record {
 		&check_fqn( $rest, "CNAME" );
 		if ( $nn == 0 ) {
 			$names{"$name"} = -$nline;
-			print FORWARD "$name  $ttl $class  CNAME  $rest\n";
+			print $forward_handle "$name  $ttl $class  CNAME  $rest\n";
 		}
 		else {
 			if ( $nn > $used_dup ) {
@@ -1576,14 +1594,14 @@ sub handle_record {
 	# Type SRV -- right now we just copy it to output [CWF]
 
 	if ( $type eq "SRV" ) {
-		print FORWARD "$name  $ttl $class  SRV  $rest\n";
+		print $forward_handle "$name  $ttl $class  SRV  $rest\n";
 		return;
 	}
 
 	# Type NAPTR -- right now we just copy it to output as well [CWF - AUG 04]
 
 	if ( $type eq "NAPTR" ) {
-		print FORWARD "$name  $ttl $class  NAPTR  $rest\n";
+		print $forward_handle "$name  $ttl $class  NAPTR  $rest\n";
 		return;
 	}
 
@@ -1724,14 +1742,14 @@ sub handle_record {
 
 		# Otherwise this is a devolution from the main forwards zone
 
-		else { print FORWARD "$printname  $ttl  $class  NS  $rest\n"; }
+		else { print $forward_handle "$printname  $ttl  $class  NS  $rest\n"; }
 		return;
 	}
 
 	# Type HINFO - host information; no further checking
 
 	if ( $type eq "HINFO" ) {
-		print FORWARD "$printname  $ttl  $class  HINFO  $rest\n";
+		print $forward_handle "$printname  $ttl  $class  HINFO  $rest\n";
 		return;
 	}
 
@@ -1744,7 +1762,7 @@ sub handle_record {
 		if ( $pref !~ /^\d+$/ ) {
 			&error("invalid MX preference field (not all digits).");
 		}
-		print FORWARD "$printname  $ttl  $class  MX  $pref  $gateway\n";
+		print $forward_handle "$printname  $ttl  $class  MX  $pref  $gateway\n";
 		return;
 	}
 
@@ -1846,7 +1864,7 @@ sub handle_record {
 				}
 			}
 
-			print FORWARD "$pref  $rest\n";
+			print $forward_handle "$pref  $rest\n";
 			return if !$continued;
 
 			# Read in the next line, which contains more services, for the
@@ -1866,7 +1884,7 @@ sub handle_record {
 		if ( $rest !~ /^\S+\s+\S+$/ ) {
 			&error("malformed RP record - two fields required.");
 		}
-		print FORWARD "$printname  $ttl  $class  RP  $rest\n";
+		print $forward_handle "$printname  $ttl  $class  RP  $rest\n";
 		return;
 	}
 
@@ -1894,7 +1912,7 @@ sub generate_zones {
 
 	# Open the output files
 
-	open( FORWARD, ">$forward_file.new" )
+	open( $forward_handle, ">$forward_file.new" )
 	  || &give_up("unable to open $forward_file.new");
 
 	for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
@@ -1911,7 +1929,7 @@ sub generate_zones {
 
 	for ( $nline = 1 ; $nline <= $soa_count ; $nline++ ) {
 		$_ = <SOURCE>;
-		print FORWARD $_;
+		print $forward_handle $_;
 		&print_reverse($_);
 	}
 
@@ -1946,14 +1964,14 @@ sub generate_zones {
 		$rest =~ s/^\s+//;          # strip leading white space
 		$rest =~ s/\s*(;.*)?$//;    # strip trailing spaces and comments & NL
 		if ( $rest eq "" ) {
-			print FORWARD $_;
+			print $forward_handle $_;
 			&print_reverse($_);
 		}
 		else {
 			while ( $rest ne "" ) {
 				( my $zone, $rest ) = split( /\s+/, $rest, 2 );
 				if ( $zone eq $zone_name ) {
-					print FORWARD "  $ttl  $class  NS  $ns\n";
+					print $forward_handle "  $ttl  $class  NS  $ns\n";
 				}
 				elsif ( $zone =~ /(.*:.*)\/(\d+)/ )    # IPv6
 				{
@@ -2023,7 +2041,7 @@ sub generate_zones {
 
 	# Close all the files
 
-	close FORWARD;
+	close $forward_handle;
 	close SOURCE;
 	for ( $i = 0 ; $i < $rzone_count ; $i++ )  { close( $rzone_handle[$i] ); }
 	for ( $i = 0 ; $i < $rzone6_count ; $i++ ) { close( $rzone6_handle[$i] ); }
