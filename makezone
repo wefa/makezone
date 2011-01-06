@@ -733,7 +733,6 @@ sub find_zone_v6 {
 # Exit from the whole program on failure.
 
 my $zone_count = 0;
-my $zone_name;
 my $zone_file;
 my $zone_handle;
 
@@ -884,7 +883,6 @@ sub unpick_args {
 		}
 	}
 
-	$zone_name = $zone_names[0];
 	$zone_file = $zone_files[0];
 }
 
@@ -894,7 +892,7 @@ sub unpick_args {
 
 sub verify {
 	print "\nMakezones $version_number\n";
-	print "Generating DNS zone files for $zone_name from $source_file.\n";
+	print "Generating DNS zone files for @zone_names from $source_file.\n";
 
 	printf "  Forward zone file%s ", ( $zone_count == 1 ) ? ": " : "s:";
 	if ( $zone_count > 0 ) {
@@ -1951,7 +1949,8 @@ sub generate_zones {
 	# Record the fact that the name "@" has been used, for a record
 	# of type "other". This will stop a CNAME of that name.
 
-	$names{"$zone_name."} = $used_other;
+	$names{"$_."} = $used_other
+		for @zone_names;
 
 	# Copy all the NS records for these zones to all the outputs. Stop
 	# on reaching a non-NS record or a record with a name field. Skip
@@ -1985,7 +1984,7 @@ sub generate_zones {
 		else {
 			while ( $rest ne "" ) {
 				( my $zone, $rest ) = split( /\s+/, $rest, 2 );
-				if ( $zone eq $zone_name ) {
+				if ( grep { $zone eq $_ } @zone_names ) {
 					print $zone_handle "  $ttl  $class  NS  $ns\n";
 				}
 				elsif ( $zone =~ /(.*:.*)\/(\d+)/ )    # IPv6
