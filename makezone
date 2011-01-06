@@ -542,6 +542,7 @@ sub error {
 my $rzone_count       = 0;
 my $rzone6_count      = 0;
 my @rzone6_file       = ();
+my @rzone6_name       = ();
 my @rzone6_prefix     = ();
 my @rzone6_prefixlen  = ();
 my @rzone6_handle     = ();
@@ -647,26 +648,21 @@ sub format_v6_reverse_inzone {
 		if $prefixlen % 4 || $subprefixlen % 4;
 	my $s = join '.', split //,
 	   reverse sprintf "%04x%04x%04x%04x%04x%04x%04x%04x", @$subprefix;
-	if($subprefixlen == 128)
-	{
-		if($prefixlen == 0)
-		{
+	if($subprefixlen == 128) {
+		if($prefixlen == 0) {
 			return $s;
-		}
-		else
-		{
+		} else {
 			return substr $s, 0, -(($prefixlen / 4) * 2);
 		}
-	}
-	else
-	{
-		if($prefixlen == 0)
-		{
-			return substr $s, (($subprefixlen / 4) * 2);
-		}
-		else
-		{
-			return substr $s, (($subprefixlen / 4) * 2), -(($prefixlen / 4) * 2);
+	} else {
+		if($prefixlen == 0) {
+			if($subprefixlen == 0) {
+				return "";
+			} else {
+				return substr $s, -(($subprefixlen / 4) * 2 - 1);
+			}
+		} else {
+			return substr $s, -(($subprefixlen / 4) * 2 - 1), -(($prefixlen / 4) * 2);
 		}
 	}
 }
@@ -717,14 +713,16 @@ sub find_zone_v6 {
 	my ( $subnet, @addr ) = @_;
 	my ( $rzone6 );
 
+	my $bestzone6 = undef;
+
 	for ( $rzone6 = 0 ; $rzone6 < $rzone6_count ; $rzone6++ ) {
 		my $cmp = match_prefix_v6 \@addr, $rzone6_prefix[$rzone6], $rzone6_prefixlen[$rzone6];
-		last
-		  if $cmp
+		$bestzone6 = $rzone6
+		  if $cmp && (!defined $bestzone6 || $rzone6_prefix[$rzone6] >= $rzone6_prefix[$bestzone6])
 		  && ( ( $subnet == 0 ) || ( $cmp != 2 ) );
 	}
 
-	return $rzone6;
+	return $bestzone6;
 
 }
 
@@ -777,16 +775,35 @@ sub unpick_args {
 		shift @ARGV;
 		if ( $rzone =~ /(^db\.)(.*)\.\.(\d+)/ )    # IPv6
 		{
-			$rzone6_file[$rzone6_count] = $rzone;
 			my ( $prefix, $v6addr, $prefixlen ) = ( $1, $2, $3 );
 			&give_up("bad prefix length $prefixlen")
-			  if ( $prefixlen % 4 || $prefixlen <= 0 || $prefixlen >= 128 );
+			  if ( $prefixlen <= 0 || $prefixlen >= 128 );
 			$v6addr =~ s/\./:/g;
 			$v6addr .= "::";
 
-			$rzone6_prefix[$rzone6_count] = [parse_v6 $v6addr];
-			$rzone6_prefixlen[$rzone6_count] = $prefixlen;
-			++$rzone6_count;
+			if($prefixlen > 128-4) {
+				# detect a "CNAME delegation"
+				$rzone6_prefix[$rzone6_count] = [parse_v6 $v6addr];
+				$rzone6_prefixlen[$rzone6_count] = $prefixlen;
+				$rzone6_file[$rzone6_count] = $rzone;
+
+				my $subnet = format_v6_reverse_inzone([parse_v6 $v6addr], 128, [0,0,0,0,0,0,0,0], 0);
+				my $subnet_name = sprintf "%d/%s", $prefixlen, $subnet;
+				$rzone6_name[$rzone6_count] = $subnet_name . ".IP6.ARPA";
+
+				++$rzone6_count;
+			} else {
+				# detect a "multi-NS delegation" and use multiple zone files then
+				my @l = list_v6_noncidr [parse_v6 $v6addr], $prefixlen;
+				for(@l) {
+					my $subnet = format_v6_reverse_inzone($_->[0], $_->[1], [0,0,0,0,0,0,0,0], 0);
+					$rzone6_prefix[$rzone6_count] = $_->[0];
+					$rzone6_prefixlen[$rzone6_count] = $_->[1];
+					$rzone6_file[$rzone6_count] = $rzone . (@l == 1 ? "" : "." . (substr $subnet, 0, 1));
+					$rzone6_name[$rzone6_count] = $subnet . ".IP6.ARPA";
+					++$rzone6_count;
+				}
+			}
 		}
 		else {
 			$rzone_file[$rzone_count] = $rzone;
@@ -2084,7 +2101,7 @@ sub rename_zones {
 			unlink("$rzone_file[$i]$xt");
 		}
 		for ( $i = 0 ; $i < $rzone6_count ; $i++ ) {
-			print("\t$rzone6_file[$i]\n") if $chatty;
+			print("\t$rzone6_file[$i] ($rzone6_name[$i])\n") if $chatty;
 			$dummy =
 `$postprocess_command < $rzone6_file[$i]$xt > $rzone6_file[$i]$xt2`;
 			&give_up("postprocessing failed with $rzone6_file[$i]")
