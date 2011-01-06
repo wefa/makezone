@@ -125,7 +125,8 @@ my $create_delegated_subnet_cnames = 1;
 my $postprocess_zonefiles = 1;
 
 #my $postprocess_command = "/usr/xpg4/bin/awk -f beautify.awk";
-my $postprocess_command = "/usr/bin/awk -f beautify.awk";
+#my $postprocess_command = "/usr/bin/awk -f beautify.awk";
+my $postprocess_command = "awk -f beautify.awk";
 
 # allow wildcards of all types. If zero, only MX wildcards are possible
 my $all_wildcards = 1;
@@ -573,9 +574,9 @@ sub find_zone {
 
 	for ( $rzone = 0 ; $rzone < $rzone_count ; $rzone++ ) {
 		last
-		  if ( ( ( $net & $rzone_mask[$rzone] ) == $rzone_number[$rzone] )
-			&& ( ( $subnet == 0 ) || ( ( $net - $rzone_number[$rzone] ) != 0 ) )
-		  );
+			if ( ( ( $net & $rzone_mask[$rzone] ) == $rzone_number[$rzone] )
+					&& ( ( $subnet == 0 ) || ( ( $net - $rzone_number[$rzone] ) != 0 ) )
+			   );
 	}
 
 	return $rzone;
@@ -591,13 +592,13 @@ sub parse_v6 {
 		my (@addr_pre)  = map { hex $_ } split /:/, $addr_pre;
 		my (@addr_post) = map { hex $_ } split /:/, $addr_post;
 		&error("invalid ipv6 address: $addr\n")
-		  if @addr_pre + @addr_post > 8;
+			if @addr_pre + @addr_post > 8;
 		@addr = ( @addr_pre, (0) x ( 8 - @addr_pre - @addr_post ), @addr_post );
 	}
 	else {
 		@addr = map { hex $_ } split /:/, $addr;
 		&error("invalid ipv6 address: $addr\n")
-		  if @addr != 8;
+			if @addr != 8;
 	}
 	if ( grep { $_ < 0 || $_ > 65535 } @addr ) {
 		&error("IPv6 address contains component with value greater than ffff.");
@@ -618,14 +619,14 @@ sub match_prefix_v6 {
 		my $a = $addr->[$_];
 		my $n = $net->[$_];
 		$different ||= ($a != $n);
-		my $cbits = $prefixlen - 32 * $_;
-		$cbits = 31 if $cbits > 31;
+		my $cbits = $prefixlen - 16 * $_;
+		$cbits = 16 if $cbits > 16;
 		$cbits = 0 if $cbits < 0;
 		next if $cbits == 0;
-		if($cbits < 31)
+		if($cbits < 16)
 		{
-			$a >>= (31 - $cbits);
-			$n >>= (31 - $cbits);
+			$a >>= (16 - $cbits);
+			$n >>= (16 - $cbits);
 		}
 		return 0 if $a != $n;
 	}
@@ -645,7 +646,7 @@ sub format_v6_reverse_inzone {
 	&error("currently no support for more than 4 bits granularity")
 		if $prefixlen % 4 || $subprefixlen % 4;
 	my $s = join '.', split //,
-	  reverse sprintf "%04x%04x%04x%04x%04x%04x%04x%04x", @$subprefix;
+	   reverse sprintf "%04x%04x%04x%04x%04x%04x%04x%04x", @$subprefix;
 	if($subprefixlen == 128)
 	{
 		if($prefixlen == 0)
@@ -668,6 +669,48 @@ sub format_v6_reverse_inzone {
 			return substr $s, (($subprefixlen / 4) * 2), -(($prefixlen / 4) * 2);
 		}
 	}
+}
+
+sub bit_v6 {
+	my ( $addr, $bit, $newvalue ) = @_;
+	my $pos = 7 - int($bit / 16);
+	my $val = (1 << ($bit % 16));
+	my $old = ($addr->[$pos] & $val);
+	if(defined $newvalue) {
+		if($newvalue and not $old) {
+			$addr->[$pos] += $val;
+		} elsif($old and not $newvalue) {
+			$addr->[$pos] -= $val;
+		}
+	}
+	return $old;
+}
+sub increment_v6 {
+	my ( $addr, $incbit, $incamount ) = @_;
+	if ( $incamount > 1 ) {
+		return increment_v6 ( increment_v6 ( $addr, $incbit+1, int($incamount / 2) ), $incbit, $incamount % 2 );
+	} elsif ( $incamount < 1 ) {
+		return $addr;
+	} else {
+		# increment by ONE
+		my $carry = 1;
+		$addr = [@$addr]; # copy
+		while($carry) {
+			$carry = bit_v6 $addr, $incbit;
+			bit_v6 $addr, $incbit, !$carry;
+		}
+		return $addr;
+	}
+}
+
+sub list_v6_noncidr {
+	my ($prefix, $prefixlen) = @_;
+	return [$prefix, $prefixlen]
+		if $prefixlen % 4 == 0;
+	my $newprefixlen = ($prefixlen | 3) + 1;
+	my $newprefix = $prefix;
+	my $n = (1 << ($newprefixlen - $prefixlen));
+	return map { [increment_v6($newprefix, 128-$newprefixlen, $_), $newprefixlen]  } 0..($n-1);
 }
 
 sub find_zone_v6 {
@@ -1550,14 +1593,27 @@ sub handle_record {
 		if ( $name =~ /(.*:.*)\/(.*)/ ) {
 			my ( $net, $rzone, $r_e );
 			my ( $addr, $prefixlen ) = ( $1, $2 );
+			my ($cidr_extension) = 1;
 			my @addr = parse_v6 $addr;
+
+			if($prefixlen % 4 == 0) {
+				$cidr_extension = 0;
+			}
 
 			$rzone = &find_zone_v6( 1, @addr );
 
 			if ( $rzone >= $rzone6_count ) {
 				&error("$addr/$prefixlen is not a subnet of a known network.");
-			}
-			else {
+			} elsif ($cidr_extension && $prefixlen < 128-4) { # multi NS
+				my ($handle) = $rzone6_handle[$rzone];
+				my @subnet_list = list_v6_noncidr \@addr, $prefixlen;
+				for(@subnet_list) {
+					my $subnet = format_v6_reverse_inzone($_->[0], $_->[1], $rzone6_prefix[$rzone], $rzone6_prefixlen[$rzone]);
+					print $handle "$subnet  $ttl  $class  NS  $rest\n";
+				}
+			} elsif ($cidr_extension && $prefixlen > 128-4) { # CNAME hack
+				die "IPv6 CIDR CNAME hack not yet implemented";
+			} else {
 				my ($handle) = $rzone6_handle[$rzone];
 				my $subnet = format_v6_reverse_inzone(\@addr, $prefixlen, $rzone6_prefix[$rzone], $rzone6_prefixlen[$rzone]);
 				print $handle "$subnet  $ttl  $class  NS  $rest\n";
