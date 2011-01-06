@@ -535,8 +535,15 @@ sub error {
 }
 
 ##################################################
-#       Print line to all reverse zone files     #
+#       Zone data structures                     #
 ##################################################
+
+my $zone_count = 0;
+
+# TODO remove s suffix
+my @zone_names = ();
+my @zone_files = ();
+my @zone_handles = ();
 
 my $rzone_count       = 0;
 my @rzone_file        = ();
@@ -552,6 +559,10 @@ my @rzone6_prefix     = ();
 my @rzone6_prefixlen  = ();
 my @rzone6_handle     = ();
 
+##################################################
+#       Print line to all reverse zone files     #
+##################################################
+
 sub print_reverse {
 	my ($i);
 	for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
@@ -560,6 +571,14 @@ sub print_reverse {
 	}
 	for ( $i = 0 ; $i < $rzone6_count ; $i++ ) {
 		my $handle = $rzone6_handle[$i];
+		print $handle $_[0];
+	}
+}
+
+sub print_forward {
+	my ($i);
+	for ( $i = 0 ; $i < $zone_count ; $i++ ) {
+		my $handle = $zone_handles[$i];
 		print $handle $_[0];
 	}
 }
@@ -732,15 +751,6 @@ sub find_zone_v6 {
 
 # Exit from the whole program on failure.
 
-my $zone_count = 0;
-my $zone_file;
-my $zone_handle;
-
-# TODO remove s suffix
-my @zone_names = ();
-my @zone_files = ();
-my @zone_handles = ();
-
 sub unpick_args {
 	$rzone_count  = 0;
 	$rzone6_count = 0;
@@ -882,8 +892,6 @@ sub unpick_args {
 			$rzone_mask_length[ $rzone_count++ ] = $e;
 		}
 	}
-
-	$zone_file = $zone_files[0];
 }
 
 ##################################################
@@ -1009,10 +1017,10 @@ sub update_serial {
 
 sub handle_comment {
 	if (/^;F /) {
-		printf $zone_handle "; %s", substr( $_, 3 );
+		&print_forward( "; " . substr( $_, 3 ) );
 	}
 	elsif (/^;R /) {
-		&print_reverse( join( "", "; ", substr( $_, 3 ) ) );
+		&print_reverse( "; " . substr( $_, 3 ) );
 	}
 }
 
@@ -1186,10 +1194,12 @@ sub handle_record {
 	# names on MX records to be "*".
 
 	my $zone_name = $zone_names[0];
+	my $zone_handle = $zone_handles[0];
 	for my $zi(0..@zone_names-1) {
 		my $zn = $zone_names[$zi];
 		if($name =~ s/\.\Q$zn\E\.$//) {
 			$zone_name = $zn;
+			$zone_handle = $zone_handles[$zi];
 			last;
 		}
 	}
@@ -1926,7 +1936,6 @@ sub generate_zones {
 		open( $zone_handles[$i], ">$zone_files[$i].new" )
 		  || &give_up("unable to open $zone_files[$i].new");
 	}
-	$zone_handle = $zone_handles[0]; # TODO remove this
 
 	for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
 		open( $rzone_handle[$i], ">$rzone_file[$i].new" )
@@ -1942,7 +1951,7 @@ sub generate_zones {
 
 	for ( $nline = 1 ; $nline <= $soa_count ; $nline++ ) {
 		$_ = <SOURCE>;
-		print $zone_handle $_;
+		&print_forward($_);
 		&print_reverse($_);
 	}
 
@@ -1978,14 +1987,15 @@ sub generate_zones {
 		$rest =~ s/^\s+//;          # strip leading white space
 		$rest =~ s/\s*(;.*)?$//;    # strip trailing spaces and comments & NL
 		if ( $rest eq "" ) {
-			print $zone_handle $_;
+			&print_forward($_);
 			&print_reverse($_);
 		}
 		else {
 			while ( $rest ne "" ) {
 				( my $zone, $rest ) = split( /\s+/, $rest, 2 );
-				if ( grep { $zone eq $_ } @zone_names ) {
-					print $zone_handle "  $ttl  $class  NS  $ns\n";
+				if ( defined(my $i = grep { $zone eq $zone_names[$_] } 0..$zone_count-1) ) {
+					my $h = $zone_handles[$i];
+					print $h "  $ttl  $class  NS  $ns\n";
 				}
 				elsif ( $zone =~ /(.*:.*)\/(\d+)/ )    # IPv6
 				{
@@ -2055,8 +2065,8 @@ sub generate_zones {
 
 	# Close all the files
 
-	close $zone_handle;
 	close SOURCE;
+	for ( $i = 0 ; $i < $zone_count ; $i++ )   { close( $zone_handles[$i] ); }
 	for ( $i = 0 ; $i < $rzone_count ; $i++ )  { close( $rzone_handle[$i] ); }
 	for ( $i = 0 ; $i < $rzone6_count ; $i++ ) { close( $rzone6_handle[$i] ); }
 }
