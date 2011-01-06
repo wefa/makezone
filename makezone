@@ -1193,19 +1193,19 @@ sub handle_record {
 	# MX records for their entire zone, and we allow the first component of
 	# names on MX records to be "*".
 
-	my $zone_name = $zone_names[0];
-	my $zone_handle = $zone_handles[0];
+	my $thiszone_name = $zone_names[0];
+	my $thiszone_handle = $zone_handles[0];
 	for my $zi(0..@zone_names-1) {
 		my $zn = $zone_names[$zi];
 		if($name =~ s/\.\Q$zn\E\.$//) {
-			$zone_name = $zn;
-			$zone_handle = $zone_handles[$zi];
+			$thiszone_name = $zn;
+			$thiszone_handle = $zone_handles[$zi];
 			last;
 		}
 	}
 
 	if ( $name eq "@" ) {
-		$name = "$zone_name.";
+		$name = "$thiszone_name.";
 		$printname = $name if ( substr( $printname, 0, 1 ) ne " " );
 	}
 	elsif ( $name =~ /^\*/ ) {
@@ -1280,7 +1280,7 @@ sub handle_record {
 		if ( $rest !~ /^\".*\"\s*(;.*)?$/ ) {
 			&error("malformed TXT record - must use double quotes.");
 		}
-		print $zone_handle "$printname  $ttl  $class  TXT  $rest";
+		print $thiszone_handle "$printname  $ttl  $class  TXT  $rest";
 		$names{"$name"} = $used_other if $names{"$name"};
 		return;
 	}
@@ -1362,7 +1362,7 @@ sub handle_record {
 
 		# Output the A record to the forward file, unless reverse-only record.
 
-		print $zone_handle "$printname  $ttl  $class  A  $rest\n" if !$reverse_only;
+		print $thiszone_handle "$printname  $ttl  $class  A  $rest\n" if !$reverse_only;
 
 		# If required, generate a PTR record for the reverse file. Check for
 		# multiples, and complain unless the record is flagged as such.
@@ -1385,7 +1385,7 @@ sub handle_record {
 				print $handle ".$c" if ( $e < 24 );
 				print $handle ".$b" if ( $e < 16 );
 				print $handle "  $ttl  $class  PTR  $name";
-				print $handle ".$zone_name."
+				print $handle ".$thiszone_name."
 				  if ( substr( $name, -1, 1 ) ne "." );
 				print $handle "\n";
 				$addresses{"$thisaddress"} = $nline
@@ -1431,7 +1431,7 @@ sub handle_record {
 
 		# Output the A record to the forward file, unless reverse-only record.
 
-		print $zone_handle "$printname  $ttl  $class  AAAA  $addr_normalized\n"
+		print $thiszone_handle "$printname  $ttl  $class  AAAA  $addr_normalized\n"
 		  if !$reverse_only;
 
 		# If required, generate a PTR record for the reverse file. Check for
@@ -1452,7 +1452,7 @@ sub handle_record {
 				my ($handle) = $rzone6_handle[$rzone];
 				print $handle format_v6_reverse_inzone(\@addr, 128, $rzone6_prefix[$rzone], $rzone6_prefixlen[$rzone]);
 				print $handle "  $ttl  $class  PTR  $name";
-				print $handle ".$zone_name."
+				print $handle ".$thiszone_name."
 				  if ( substr( $name, -1, 1 ) ne "." );
 				print $handle "\n";
 				$addresses{"$thisaddress"} = $nline
@@ -1475,7 +1475,7 @@ sub handle_record {
 		&check_fqn( $rest, "CNAME" );
 		if ( $nn == 0 ) {
 			$names{"$name"} = -$nline;
-			print $zone_handle "$name  $ttl $class  CNAME  $rest\n";
+			print $thiszone_handle "$name  $ttl $class  CNAME  $rest\n";
 		}
 		else {
 			if ( $nn > $used_dup ) {
@@ -1531,7 +1531,7 @@ sub handle_record {
 					my ($handle) = $rzone6_handle[$rzone];
 					print $handle format_v6_reverse_inzone(\@addr, 128, $rzone6_prefix[$rzone], $rzone6_prefixlen[$rzone]);
 					print $handle "  $ttl  $class  PTR  $rest";
-					print $handle ".$zone_name."
+					print $handle ".$thiszone_name."
 					  if ( substr( $rest, -1, 1 ) ne "." );
 					print $handle "\n";
 					$addresses{"$thisaddress"} = $nline
@@ -1614,14 +1614,14 @@ sub handle_record {
 	# Type SRV -- right now we just copy it to output [CWF]
 
 	if ( $type eq "SRV" ) {
-		print $zone_handle "$name  $ttl $class  SRV  $rest\n";
+		print $thiszone_handle "$name  $ttl $class  SRV  $rest\n";
 		return;
 	}
 
 	# Type NAPTR -- right now we just copy it to output as well [CWF - AUG 04]
 
 	if ( $type eq "NAPTR" ) {
-		print $zone_handle "$name  $ttl $class  NAPTR  $rest\n";
+		print $thiszone_handle "$name  $ttl $class  NAPTR  $rest\n";
 		return;
 	}
 
@@ -1762,14 +1762,14 @@ sub handle_record {
 
 		# Otherwise this is a devolution from the main forwards zone
 
-		else { print $zone_handle "$printname  $ttl  $class  NS  $rest\n"; }
+		else { print $thiszone_handle "$printname  $ttl  $class  NS  $rest\n"; }
 		return;
 	}
 
 	# Type HINFO - host information; no further checking
 
 	if ( $type eq "HINFO" ) {
-		print $zone_handle "$printname  $ttl  $class  HINFO  $rest\n";
+		print $thiszone_handle "$printname  $ttl  $class  HINFO  $rest\n";
 		return;
 	}
 
@@ -1782,7 +1782,7 @@ sub handle_record {
 		if ( $pref !~ /^\d+$/ ) {
 			&error("invalid MX preference field (not all digits).");
 		}
-		print $zone_handle "$printname  $ttl  $class  MX  $pref  $gateway\n";
+		print $thiszone_handle "$printname  $ttl  $class  MX  $pref  $gateway\n";
 		return;
 	}
 
@@ -1884,7 +1884,7 @@ sub handle_record {
 				}
 			}
 
-			print $zone_handle "$pref  $rest\n";
+			print $thiszone_handle "$pref  $rest\n";
 			return if !$continued;
 
 			# Read in the next line, which contains more services, for the
@@ -1904,7 +1904,7 @@ sub handle_record {
 		if ( $rest !~ /^\S+\s+\S+$/ ) {
 			&error("malformed RP record - two fields required.");
 		}
-		print $zone_handle "$printname  $ttl  $class  RP  $rest\n";
+		print $thiszone_handle "$printname  $ttl  $class  RP  $rest\n";
 		return;
 	}
 
