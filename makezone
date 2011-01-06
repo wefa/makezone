@@ -1631,9 +1631,10 @@ sub handle_record {
 			} elsif ($cidr_extension && $prefixlen > 128-4) { # CNAME hack
 				my ($handle) = $rzone6_handle[$rzone];
 				my @subnet_list = list_v6_noncidr \@addr, $prefixlen;
+				my $supernet = format_v6_reverse_inzone($subnet_list[0]->[0], $subnet_list[0]->[1], [0,0,0,0,0,0,0,0], 0);
 				for(@subnet_list) {
 					my $subnet = format_v6_reverse_inzone($_->[0], $_->[1], [0,0,0,0,0,0,0,0], 0);
-					my $subnet_name = sprintf "%s.%d/%s", substr($subnet, 0, 1), $prefixlen, substr($subnet, 2);
+					my $subnet_name = sprintf "%s.%d/%s", substr($subnet, 0, 1), $prefixlen, $supernet;
 					print $handle "$subnet  $ttl  $class  CNAME  $subnet_name.IP6.ARPA.\n";
 				}
 			} else {
