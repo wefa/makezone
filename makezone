@@ -6,7 +6,6 @@ use warnings;
 our $version_number = "0.22h [22-JUN-10]";
 
 # TODO
-# v6 cidr
 # multi forward zones
 
 # This script was developed using Perl 4.036. It has now been converted
