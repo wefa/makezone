@@ -541,9 +541,9 @@ sub error {
 my $zone_count = 0;
 
 # TODO remove s suffix
-my @zone_names = ();
-my @zone_files = ();
-my @zone_handles = ();
+my @zone_name = ();
+my @zone_file = ();
+my @zone_handle = ();
 
 my $rzone_count       = 0;
 my @rzone_file        = ();
@@ -578,7 +578,7 @@ sub print_reverse {
 sub print_forward {
 	my ($i);
 	for ( $i = 0 ; $i < $zone_count ; $i++ ) {
-		my $handle = $zone_handles[$i];
+		my $handle = $zone_handle[$i];
 		print $handle $_[0];
 	}
 }
@@ -775,13 +775,13 @@ sub unpick_args {
 	# The second argument is the zone name; remove the trailing dot
 	# if present.
 
-	$zone_names[0] = $ARGV[0];
+	$zone_name[0] = $ARGV[0];
 	shift @ARGV;
-	chop($zone_names[0]) if ( substr( $zone_names[0], -1, 1 ) eq "." );
+	chop($zone_name[0]) if ( substr( $zone_name[0], -1, 1 ) eq "." );
 
 	# The third argument is the forwards zone file
 
-	$zone_files[0] = $ARGV[0];
+	$zone_file[0] = $ARGV[0];
 	shift @ARGV;
 
 	$zone_count = 1;
@@ -900,13 +900,13 @@ sub unpick_args {
 
 sub verify {
 	print "\nMakezones $version_number\n";
-	print "Generating DNS zone files for @zone_names from $source_file.\n";
+	print "Generating DNS zone files for @zone_name from $source_file.\n";
 
 	printf "  Forward zone file%s ", ( $zone_count == 1 ) ? ": " : "s:";
 	if ( $zone_count > 0 ) {
 		for ( my $i = 0 ; $i < $zone_count ; $i++ ) {
 			print " " x 22 if $i != 0;
-			print "$zone_files[$i]\n";
+			print "$zone_file[$i]\n";
 		}
 	}
 	else { print "<none>\n"; }
@@ -1193,13 +1193,13 @@ sub handle_record {
 	# MX records for their entire zone, and we allow the first component of
 	# names on MX records to be "*".
 
-	my $thiszone_name = $zone_names[0];
-	my $thiszone_handle = $zone_handles[0];
-	for my $zi(0..@zone_names-1) {
-		my $zn = $zone_names[$zi];
+	my $thiszone_name = $zone_name[0];
+	my $thiszone_handle = $zone_handle[0];
+	for my $zi(0..@zone_name-1) {
+		my $zn = $zone_name[$zi];
 		if($name =~ s/\.\Q$zn\E\.$//) {
 			$thiszone_name = $zn;
-			$thiszone_handle = $zone_handles[$zi];
+			$thiszone_handle = $zone_handle[$zi];
 			last;
 		}
 	}
@@ -1933,8 +1933,8 @@ sub generate_zones {
 	# Open the output files
 
 	for ( $i = 0 ; $i < $zone_count ; $i++ ) {
-		open( $zone_handles[$i], ">$zone_files[$i].new" )
-		  || &give_up("unable to open $zone_files[$i].new");
+		open( $zone_handle[$i], ">$zone_file[$i].new" )
+		  || &give_up("unable to open $zone_file[$i].new");
 	}
 
 	for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
@@ -1959,7 +1959,7 @@ sub generate_zones {
 	# of type "other". This will stop a CNAME of that name.
 
 	$names{"$_."} = $used_other
-		for @zone_names;
+		for @zone_name;
 
 	# Copy all the NS records for these zones to all the outputs. Stop
 	# on reaching a non-NS record or a record with a name field. Skip
@@ -1993,8 +1993,8 @@ sub generate_zones {
 		else {
 			while ( $rest ne "" ) {
 				( my $zone, $rest ) = split( /\s+/, $rest, 2 );
-				if ( defined(my $i = grep { $zone eq $zone_names[$_] } 0..$zone_count-1) ) {
-					my $h = $zone_handles[$i];
+				if ( defined(my $i = [grep { $zone eq $zone_name[$_] } 0..$zone_count-1]->[0]) ) {
+					my $h = $zone_handle[$i];
 					print $h "  $ttl  $class  NS  $ns\n";
 				}
 				elsif ( $zone =~ /(.*:.*)\/(\d+)/ )    # IPv6
@@ -2066,7 +2066,7 @@ sub generate_zones {
 	# Close all the files
 
 	close SOURCE;
-	for ( $i = 0 ; $i < $zone_count ; $i++ )   { close( $zone_handles[$i] ); }
+	for ( $i = 0 ; $i < $zone_count ; $i++ )   { close( $zone_handle[$i] ); }
 	for ( $i = 0 ; $i < $rzone_count ; $i++ )  { close( $rzone_handle[$i] ); }
 	for ( $i = 0 ; $i < $rzone6_count ; $i++ ) { close( $rzone6_handle[$i] ); }
 }
@@ -2111,7 +2111,7 @@ sub compare_lengths {
 	print "Comparing lengths of old and new zone files...\n" if $chatty;
 	$lastwaserror = 0;
 	for ( $i = 0 ; $i < $zone_count ; $i++ ) {
-		&check_length("$zone_files[$i]");
+		&check_length("$zone_file[$i]");
 	}
 	for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
 		&check_length("$rzone_file[$i]");
@@ -2133,12 +2133,12 @@ sub rename_zones {
 		print "postprocessing the new zone files...\n"
 		  if $chatty;
 		for ( $i = 0 ; $i < $zone_count ; $i++ ) {
-			print("\t$zone_files[$i]\n") if $chatty;
+			print("\t$zone_file[$i]\n") if $chatty;
 			my $dummy =
-			  `$postprocess_command < $zone_files[$i]$xt > $zone_files[$i]$xt2`;
-			&give_up("postprocessing failed with $zone_files[$i]")
+			  `$postprocess_command < $zone_file[$i]$xt > $zone_file[$i]$xt2`;
+			&give_up("postprocessing failed with $zone_file[$i]")
 			  if ( $? >> 8 );
-			unlink("$zone_files[$i]$xt");
+			unlink("$zone_file[$i]$xt");
 		}
 		for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
 			print("\t$rzone_file[$i]\n") if $chatty;
@@ -2161,7 +2161,7 @@ sub rename_zones {
 
 	print "Renaming the new zone files to their final names...\n" if $chatty;
 	for ( $i = 0 ; $i < $zone_count ; $i++ ) {
-		rename( "$zone_files[$i]$xt", "$zone_files[$i]" );
+		rename( "$zone_file[$i]$xt", "$zone_file[$i]" );
 	}
 	for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
 		rename( "$rzone_file[$i]$xt", "$rzone_file[$i]" );
@@ -2182,8 +2182,8 @@ sub rename_zones {
 sub remove_temps {
 	my ($i);
 	for ( $i = 0 ; $i < $zone_count ; $i++ ) {
-		unlink "$zone_files[$i].new";
-		unlink "$zone_files[$i].new2";
+		unlink "$zone_file[$i].new";
+		unlink "$zone_file[$i].new2";
 	}
 	for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
 		unlink "$rzone_file[$i].new";
