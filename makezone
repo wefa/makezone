@@ -539,17 +539,18 @@ sub error {
 ##################################################
 
 my $rzone_count       = 0;
+my @rzone_file        = ();
+my @rzone_mask        = ();
+my @rzone_mask_length = ();
+my @rzone_number      = ();
+my @rzone_handle      = ();
+
 my $rzone6_count      = 0;
 my @rzone6_file       = ();
 my @rzone6_name       = ();
 my @rzone6_prefix     = ();
 my @rzone6_prefixlen  = ();
 my @rzone6_handle     = ();
-my @rzone_file        = ();
-my @rzone_mask        = ();
-my @rzone_mask_length = ();
-my @rzone_number      = ();
-my @rzone_handle      = ();
 
 sub print_reverse {
 	my ($i);
@@ -731,13 +732,15 @@ sub find_zone_v6 {
 
 # Exit from the whole program on failure.
 
+my $zone_count = 0;
 my $zone_name;
-my $forward_file;
-my $forward_handle;
+my $zone_file;
+my $zone_handle;
 
+# TODO remove s suffix
 my @zone_names = ();
-my @forward_files = ();
-my @forward_handles = ();
+my @zone_files = ();
+my @zone_handles = ();
 
 sub unpick_args {
 	$rzone_count  = 0;
@@ -769,8 +772,10 @@ sub unpick_args {
 
 	# The third argument is the forwards zone file
 
-	$forward_files[0] = $ARGV[0];
+	$zone_files[0] = $ARGV[0];
 	shift @ARGV;
+
+	$zone_count = 1;
 
 	# We now have zero or more reverse zone files
 
@@ -880,8 +885,7 @@ sub unpick_args {
 	}
 
 	$zone_name = $zone_names[0];
-	$forward_file = $forward_files[0];
-	$forward_handle = $forward_handles[0];
+	$zone_file = $zone_files[0];
 }
 
 ##################################################
@@ -891,9 +895,17 @@ sub unpick_args {
 sub verify {
 	print "\nMakezones $version_number\n";
 	print "Generating DNS zone files for $zone_name from $source_file.\n";
-	print "  Forward zone file:  $forward_file\n";
-	printf "  Reverse zone file%s ", ( $rzone_count == 1 ) ? ": " : "s:";
 
+	printf "  Forward zone file%s ", ( $zone_count == 1 ) ? ": " : "s:";
+	if ( $zone_count > 0 ) {
+		for ( my $i = 0 ; $i < $zone_count ; $i++ ) {
+			print " " x 22 if $i != 0;
+			print "$zone_files[$i]\n";
+		}
+	}
+	else { print "<none>\n"; }
+
+	printf "  Reverse zone file%s ", ( $rzone_count == 1 ) ? ": " : "s:";
 	if ( $rzone_count > 0 ) {
 		for ( my $i = 0 ; $i < $rzone_count ; $i++ ) {
 			print " " x 22 if $i != 0;
@@ -999,7 +1011,7 @@ sub update_serial {
 
 sub handle_comment {
 	if (/^;F /) {
-		printf $forward_handle "; %s", substr( $_, 3 );
+		printf $zone_handle "; %s", substr( $_, 3 );
 	}
 	elsif (/^;R /) {
 		&print_reverse( join( "", "; ", substr( $_, 3 ) ) );
@@ -1260,7 +1272,7 @@ sub handle_record {
 		if ( $rest !~ /^\".*\"\s*(;.*)?$/ ) {
 			&error("malformed TXT record - must use double quotes.");
 		}
-		print $forward_handle "$printname  $ttl  $class  TXT  $rest";
+		print $zone_handle "$printname  $ttl  $class  TXT  $rest";
 		$names{"$name"} = $used_other if $names{"$name"};
 		return;
 	}
@@ -1342,7 +1354,7 @@ sub handle_record {
 
 		# Output the A record to the forward file, unless reverse-only record.
 
-		print $forward_handle "$printname  $ttl  $class  A  $rest\n" if !$reverse_only;
+		print $zone_handle "$printname  $ttl  $class  A  $rest\n" if !$reverse_only;
 
 		# If required, generate a PTR record for the reverse file. Check for
 		# multiples, and complain unless the record is flagged as such.
@@ -1411,7 +1423,7 @@ sub handle_record {
 
 		# Output the A record to the forward file, unless reverse-only record.
 
-		print $forward_handle "$printname  $ttl  $class  AAAA  $addr_normalized\n"
+		print $zone_handle "$printname  $ttl  $class  AAAA  $addr_normalized\n"
 		  if !$reverse_only;
 
 		# If required, generate a PTR record for the reverse file. Check for
@@ -1455,7 +1467,7 @@ sub handle_record {
 		&check_fqn( $rest, "CNAME" );
 		if ( $nn == 0 ) {
 			$names{"$name"} = -$nline;
-			print $forward_handle "$name  $ttl $class  CNAME  $rest\n";
+			print $zone_handle "$name  $ttl $class  CNAME  $rest\n";
 		}
 		else {
 			if ( $nn > $used_dup ) {
@@ -1594,14 +1606,14 @@ sub handle_record {
 	# Type SRV -- right now we just copy it to output [CWF]
 
 	if ( $type eq "SRV" ) {
-		print $forward_handle "$name  $ttl $class  SRV  $rest\n";
+		print $zone_handle "$name  $ttl $class  SRV  $rest\n";
 		return;
 	}
 
 	# Type NAPTR -- right now we just copy it to output as well [CWF - AUG 04]
 
 	if ( $type eq "NAPTR" ) {
-		print $forward_handle "$name  $ttl $class  NAPTR  $rest\n";
+		print $zone_handle "$name  $ttl $class  NAPTR  $rest\n";
 		return;
 	}
 
@@ -1742,14 +1754,14 @@ sub handle_record {
 
 		# Otherwise this is a devolution from the main forwards zone
 
-		else { print $forward_handle "$printname  $ttl  $class  NS  $rest\n"; }
+		else { print $zone_handle "$printname  $ttl  $class  NS  $rest\n"; }
 		return;
 	}
 
 	# Type HINFO - host information; no further checking
 
 	if ( $type eq "HINFO" ) {
-		print $forward_handle "$printname  $ttl  $class  HINFO  $rest\n";
+		print $zone_handle "$printname  $ttl  $class  HINFO  $rest\n";
 		return;
 	}
 
@@ -1762,7 +1774,7 @@ sub handle_record {
 		if ( $pref !~ /^\d+$/ ) {
 			&error("invalid MX preference field (not all digits).");
 		}
-		print $forward_handle "$printname  $ttl  $class  MX  $pref  $gateway\n";
+		print $zone_handle "$printname  $ttl  $class  MX  $pref  $gateway\n";
 		return;
 	}
 
@@ -1864,7 +1876,7 @@ sub handle_record {
 				}
 			}
 
-			print $forward_handle "$pref  $rest\n";
+			print $zone_handle "$pref  $rest\n";
 			return if !$continued;
 
 			# Read in the next line, which contains more services, for the
@@ -1884,7 +1896,7 @@ sub handle_record {
 		if ( $rest !~ /^\S+\s+\S+$/ ) {
 			&error("malformed RP record - two fields required.");
 		}
-		print $forward_handle "$printname  $ttl  $class  RP  $rest\n";
+		print $zone_handle "$printname  $ttl  $class  RP  $rest\n";
 		return;
 	}
 
@@ -1912,8 +1924,11 @@ sub generate_zones {
 
 	# Open the output files
 
-	open( $forward_handle, ">$forward_file.new" )
-	  || &give_up("unable to open $forward_file.new");
+	for ( $i = 0 ; $i < $zone_count ; $i++ ) {
+		open( $zone_handles[$i], ">$zone_files[$i].new" )
+		  || &give_up("unable to open $zone_files[$i].new");
+	}
+	$zone_handle = $zone_handles[0]; # TODO remove this
 
 	for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
 		open( $rzone_handle[$i], ">$rzone_file[$i].new" )
@@ -1929,7 +1944,7 @@ sub generate_zones {
 
 	for ( $nline = 1 ; $nline <= $soa_count ; $nline++ ) {
 		$_ = <SOURCE>;
-		print $forward_handle $_;
+		print $zone_handle $_;
 		&print_reverse($_);
 	}
 
@@ -1964,14 +1979,14 @@ sub generate_zones {
 		$rest =~ s/^\s+//;          # strip leading white space
 		$rest =~ s/\s*(;.*)?$//;    # strip trailing spaces and comments & NL
 		if ( $rest eq "" ) {
-			print $forward_handle $_;
+			print $zone_handle $_;
 			&print_reverse($_);
 		}
 		else {
 			while ( $rest ne "" ) {
 				( my $zone, $rest ) = split( /\s+/, $rest, 2 );
 				if ( $zone eq $zone_name ) {
-					print $forward_handle "  $ttl  $class  NS  $ns\n";
+					print $zone_handle "  $ttl  $class  NS  $ns\n";
 				}
 				elsif ( $zone =~ /(.*:.*)\/(\d+)/ )    # IPv6
 				{
@@ -2041,7 +2056,7 @@ sub generate_zones {
 
 	# Close all the files
 
-	close $forward_handle;
+	close $zone_handle;
 	close SOURCE;
 	for ( $i = 0 ; $i < $rzone_count ; $i++ )  { close( $rzone_handle[$i] ); }
 	for ( $i = 0 ; $i < $rzone6_count ; $i++ ) { close( $rzone6_handle[$i] ); }
@@ -2086,7 +2101,9 @@ sub compare_lengths {
 	my ($i);
 	print "Comparing lengths of old and new zone files...\n" if $chatty;
 	$lastwaserror = 0;
-	&check_length("$forward_file");
+	for ( $i = 0 ; $i < $zone_count ; $i++ ) {
+		&check_length("$zone_files[$i]");
+	}
 	for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
 		&check_length("$rzone_file[$i]");
 	}
@@ -2104,15 +2121,19 @@ sub rename_zones {
 	my ($xt) = ".new";
 	if ($postprocess_zonefiles) {
 		my ($xt2) = ".new2";
-		print "postprocessing the new zone files...\n\t$forward_file\n"
+		print "postprocessing the new zone files...\n"
 		  if $chatty;
-		my ($dummy) =
-		  `$postprocess_command < $forward_file$xt > $forward_file$xt2`;
-		&give_up("postprocessing failed with $forward_file") if ( $? >> 8 );
-		unlink("$forward_file$xt");
+		for ( $i = 0 ; $i < $zone_count ; $i++ ) {
+			print("\t$zone_files[$i]\n") if $chatty;
+			my $dummy =
+			  `$postprocess_command < $zone_files[$i]$xt > $zone_files[$i]$xt2`;
+			&give_up("postprocessing failed with $zone_files[$i]")
+			  if ( $? >> 8 );
+			unlink("$zone_files[$i]$xt");
+		}
 		for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
 			print("\t$rzone_file[$i]\n") if $chatty;
-			$dummy =
+			my $dummy =
 			  `$postprocess_command < $rzone_file[$i]$xt > $rzone_file[$i]$xt2`;
 			&give_up("postprocessing failed with $rzone_file[$i]")
 			  if ( $? >> 8 );
@@ -2120,8 +2141,8 @@ sub rename_zones {
 		}
 		for ( $i = 0 ; $i < $rzone6_count ; $i++ ) {
 			print("\t$rzone6_file[$i] ($rzone6_name[$i])\n") if $chatty;
-			$dummy =
-`$postprocess_command < $rzone6_file[$i]$xt > $rzone6_file[$i]$xt2`;
+			my $dummy =
+			  `$postprocess_command < $rzone6_file[$i]$xt > $rzone6_file[$i]$xt2`;
 			&give_up("postprocessing failed with $rzone6_file[$i]")
 			  if ( $? >> 8 );
 			unlink("$rzone6_file[$i]$xt");
@@ -2130,7 +2151,9 @@ sub rename_zones {
 	}
 
 	print "Renaming the new zone files to their final names...\n" if $chatty;
-	rename( "$forward_file$xt", "$forward_file" );
+	for ( $i = 0 ; $i < $zone_count ; $i++ ) {
+		rename( "$zone_files[$i]$xt", "$zone_files[$i]" );
+	}
 	for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
 		rename( "$rzone_file[$i]$xt", "$rzone_file[$i]" );
 	}
@@ -2149,8 +2172,10 @@ sub rename_zones {
 
 sub remove_temps {
 	my ($i);
-	unlink "$forward_file.new";
-	unlink "$forward_file.new2";
+	for ( $i = 0 ; $i < $zone_count ; $i++ ) {
+		unlink "$zone_files[$i].new";
+		unlink "$zone_files[$i].new2";
+	}
 	for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
 		unlink "$rzone_file[$i].new";
 		unlink "$rzone_file[$i].new2";
