@@ -1171,7 +1171,7 @@ sub handle_record {
 		$printname = $name if ( substr( $printname, 0, 1 ) ne " " );
 	}
 	elsif ( $name =~
-		/^\d{1,3}(\/\d{1,2})?(\.\d{1,3})*$|^[0-9a-fA-F:]*(?:\/\d{1,2})?$/ )
+		/^\d{1,3}(\/\d{1,2})?(\.\d{1,3})*$|^[0-9a-fA-F:]*(?:\/\d{1,3})?$/ )
 	{
 
 		# Just check that this is on a PTR or NS or DUP record - full checking
@@ -1612,7 +1612,13 @@ sub handle_record {
 					print $handle "$subnet  $ttl  $class  NS  $rest\n";
 				}
 			} elsif ($cidr_extension && $prefixlen > 128-4) { # CNAME hack
-				die "IPv6 CIDR CNAME hack not yet implemented";
+				my ($handle) = $rzone6_handle[$rzone];
+				my @subnet_list = list_v6_noncidr \@addr, $prefixlen;
+				for(@subnet_list) {
+					my $subnet = format_v6_reverse_inzone($_->[0], $_->[1], [0,0,0,0,0,0,0,0], 0);
+					my $subnet_name = sprintf "%s.%d/%s", substr($subnet, 0, 1), $prefixlen, substr($subnet, 2);
+					print $handle "$subnet  $ttl  $class  CNAME  $subnet_name.IP6.ARPA.\n";
+				}
 			} else {
 				my ($handle) = $rzone6_handle[$rzone];
 				my $subnet = format_v6_reverse_inzone(\@addr, $prefixlen, $rzone6_prefix[$rzone], $rzone6_prefixlen[$rzone]);
