@@ -8,7 +8,7 @@ for T in */; do
 		cd "$T"
 		rm -rf out
 		mkdir out
-		sh run.sh
+		sh run.sh >log 2>&1
 	)
 	if diff -I ";serial" -Nru "$T/good" "$T/out"; then
 		echo "$T GOOD"
