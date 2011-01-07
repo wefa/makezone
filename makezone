@@ -548,9 +548,8 @@ my @zone_handle = ();
 my $rzone_count       = 0;
 my @rzone_file        = ();
 my @rzone_name        = ();
-my @rzone_mask        = ();
-my @rzone_mask_length = ();
-my @rzone_number      = ();
+my @rzone_prefix      = ();
+my @rzone_prefixlen   = ();
 my @rzone_handle      = ();
 
 my $rzone6_count      = 0;
@@ -585,24 +584,180 @@ sub print_forward {
 }
 
 ##################################################
-#   For CIDR-Support: find zone for given net    #
+#   IPv4+6 support                               #
 ##################################################
 
-sub find_zone {
-	my ( $net, $subnet, $rest ) = @_;
-	my ( $rzone, $mask );
-	$subnet ||= 0;
+my $ipv4_params = { words => 4, bits =>  8, revbits => 8 };
+my $ipv6_params = { words => 8, bits => 16, revbits => 4 };
 
-	for ( $rzone = 0 ; $rzone < $rzone_count ; $rzone++ ) {
-		last
-			if ( ( ( $net & $rzone_mask[$rzone] ) == $rzone_number[$rzone] )
-					&& ( ( $subnet == 0 ) || ( ( $net - $rzone_number[$rzone] ) != 0 ) )
-			   );
+sub match_prefix_ip {
+	my ( $params, $addr, $net, $prefixlen ) = @_;
+	my $different = 0;
+	for(0..($params->{words}-1)) {
+		my $a = $addr->[$_];
+		my $n = $net->[$_];
+		$different ||= ($a != $n);
+		my $cbits = $prefixlen - $params->{bits} * $_;
+		$cbits = $params->{bits} if $cbits > $params->{bits};
+		$cbits = 0 if $cbits < 0;
+		next if $cbits == 0;
+		if($cbits < $params->{bits})
+		{
+			$a >>= ($params->{bits} - $cbits);
+			$n >>= ($params->{bits} - $cbits);
+		}
+		return 0 if $a != $n;
+	}
+	return $different ? 1 : 2; # 2 means equal
+}
+
+sub bit_ip {
+	my ( $params, $addr, $bit, $newvalue ) = @_;
+	my $pos = ($params->{words} - 1) - int($bit / $params->{bits});
+	my $val = (1 << ($bit % $params->{bits}));
+	my $old = ($addr->[$pos] & $val);
+	if(defined $newvalue) {
+		if($newvalue and not $old) {
+			$addr->[$pos] += $val;
+		} elsif($old and not $newvalue) {
+			$addr->[$pos] -= $val;
+		}
+	}
+	return $old;
+}
+
+sub increment_ip {
+	my ( $params, $addr, $incbit, $incamount ) = @_;
+	if ( $incamount > 1 ) {
+		return increment_ip ( $params, increment_ip ( $params, $addr, $incbit+1, int($incamount / 2) ), $incbit, $incamount % 2 );
+	} elsif ( $incamount < 1 ) {
+		return $addr;
+	} else {
+		# increment by ONE
+		my $carry = 1;
+		$addr = [@$addr]; # copy
+		while($carry) {
+			$carry = bit_ip $params, $addr, $incbit;
+			bit_ip $params, $addr, $incbit, !$carry;
+		}
+		return $addr;
+	}
+}
+
+sub list_ip_noncidr {
+	my ($params, $prefix, $prefixlen) = @_;
+	return [$prefix, $prefixlen]
+		if $prefixlen % $params->{revbits} == 0;
+	my $newprefixlen = $prefixlen + $params->{revbits} - ($prefixlen % $params->{revbits});
+	my $newprefix = $prefix;
+	my $n = (1 << ($newprefixlen - $prefixlen));
+	return map { [increment_ip($params, $newprefix, $params->{words}*$params->{bits}-$newprefixlen, $_), $newprefixlen]  } 0..($n-1);
+}
+
+sub cname_hack {
+	my ($subnet, $prefixlen) = @_;
+
+	if($subnet =~ /^(.*?)\.(.*)$/) {
+		return "$1/$prefixlen.$2";
 	}
 
-	return $rzone;
-
+	&error("cname hack but no dots?");
+	return undef;
 }
+
+##################################################
+#   IPv4 support                                 #
+##################################################
+
+sub parse_v4 {
+	my ($addr) = @_;
+	my (@addr);
+
+	@addr = split /\./, $addr;
+	push @addr, 0
+		while @addr < 4;
+	&error("invalid ipv4 address: $addr")
+		if @addr != 4;
+	if ( grep { $_ < 0 || $_ > 255 } @addr ) {
+		&error("IPv4 address contains component with value greater than ffff.");
+		return;
+	}
+	return @addr;
+}
+
+sub format_v4_forward {
+	my (@addr) = @_;
+	return sprintf "%3d.%3d.%3d.%3d", @addr;
+}
+
+# format a v4 address as part of a given reverse zone (prefix, prefixlen)
+# currently this supports only %8 zones!
+sub format_v4_reverse_inzone {
+	my ($subprefix, $subprefixlen, $prefix, $prefixlen) = @_;
+	&error("Invalid prefixlen $prefixlen")
+		if $prefixlen < 0 || $prefixlen > 32;
+	&error("Invalid subprefixlen $subprefixlen")
+		if $subprefixlen < 0 || $subprefixlen > 32;
+	&error("$subprefixlen not inside the prefix $prefixlen")
+		if $subprefixlen < $prefixlen || !match_prefix_v4($subprefix, $prefix, $prefixlen);
+	&error("currently no support for more than 8 bits granularity")
+		if $prefixlen % 8 || $subprefixlen % 8;
+
+	my @l = @$subprefix;
+	if($subprefixlen == 32) {
+		if($prefixlen == 0) {
+			return join ".", reverse @l;
+		} else {
+			return join ".", reverse @l[($prefixlen / 8)..@l-1];
+		}
+	} else {
+		if($prefixlen == 0) {
+			if($subprefixlen == 0) {
+				return "";
+			} else {
+				return join ".", reverse @l[0..($subprefixlen / 8 - 1)];
+			}
+		} else {
+			return join ".", reverse @l[($prefixlen / 8)..($subprefixlen / 8 - 1)];
+		}
+	}
+}
+
+sub match_prefix_v4 {
+	return match_prefix_ip $ipv4_params, @_;
+}
+
+sub bit_v4 {
+	return bit_ip $ipv4_params, @_;
+}
+
+sub increment_v4 {
+	return increment_ip $ipv4_params, @_;
+}
+
+sub list_v4_noncidr {
+	return list_ip_noncidr $ipv4_params, @_;
+}
+
+sub find_zone_v4 {
+	my ( $subnet, @addr ) = @_;
+	my ( $rzone );
+
+	my $bestzone = undef;
+
+	for ( $rzone = 0 ; $rzone < $rzone_count ; $rzone++ ) {
+		my $cmp = match_prefix_v4 \@addr, $rzone_prefix[$rzone], $rzone_prefixlen[$rzone];
+		$bestzone = $rzone
+		  if $cmp && (!defined $bestzone || $rzone_prefix[$rzone] >= $rzone_prefix[$bestzone])
+		  && ( ( $subnet == 0 ) || ( $cmp != 2 ) );
+	}
+
+	return $bestzone;
+}
+
+##################################################
+#   IPv6 support                                 #
+##################################################
 
 sub parse_v6 {
 	my ($addr) = @_;
@@ -631,27 +786,6 @@ sub parse_v6 {
 sub format_v6_forward {
 	my (@addr) = @_;
 	return sprintf "%x:%x:%x:%x:%x:%x:%x:%x", @addr;
-}
-
-sub match_prefix_v6 {
-	my ( $addr, $net, $prefixlen ) = @_;
-	my $different = 0;
-	for(0..7) {
-		my $a = $addr->[$_];
-		my $n = $net->[$_];
-		$different ||= ($a != $n);
-		my $cbits = $prefixlen - 16 * $_;
-		$cbits = 16 if $cbits > 16;
-		$cbits = 0 if $cbits < 0;
-		next if $cbits == 0;
-		if($cbits < 16)
-		{
-			$a >>= (16 - $cbits);
-			$n >>= (16 - $cbits);
-		}
-		return 0 if $a != $n;
-	}
-	return $different ? 1 : 2; # 2 means equal
 }
 
 # format a v6 address as part of a given reverse zone (prefix, prefixlen)
@@ -687,46 +821,20 @@ sub format_v6_reverse_inzone {
 	}
 }
 
-sub bit_v6 {
-	my ( $addr, $bit, $newvalue ) = @_;
-	my $pos = 7 - int($bit / 16);
-	my $val = (1 << ($bit % 16));
-	my $old = ($addr->[$pos] & $val);
-	if(defined $newvalue) {
-		if($newvalue and not $old) {
-			$addr->[$pos] += $val;
-		} elsif($old and not $newvalue) {
-			$addr->[$pos] -= $val;
-		}
-	}
-	return $old;
+sub match_prefix_v6 {
+	return match_prefix_ip $ipv6_params, @_;
 }
+
+sub bit_v6 {
+	return bit_ip $ipv6_params, @_;
+}
+
 sub increment_v6 {
-	my ( $addr, $incbit, $incamount ) = @_;
-	if ( $incamount > 1 ) {
-		return increment_v6 ( increment_v6 ( $addr, $incbit+1, int($incamount / 2) ), $incbit, $incamount % 2 );
-	} elsif ( $incamount < 1 ) {
-		return $addr;
-	} else {
-		# increment by ONE
-		my $carry = 1;
-		$addr = [@$addr]; # copy
-		while($carry) {
-			$carry = bit_v6 $addr, $incbit;
-			bit_v6 $addr, $incbit, !$carry;
-		}
-		return $addr;
-	}
+	return increment_ip $ipv6_params, @_;
 }
 
 sub list_v6_noncidr {
-	my ($prefix, $prefixlen) = @_;
-	return [$prefix, $prefixlen]
-		if $prefixlen % 4 == 0;
-	my $newprefixlen = ($prefixlen | 3) + 1;
-	my $newprefix = $prefix;
-	my $n = (1 << ($newprefixlen - $prefixlen));
-	return map { [increment_v6($newprefix, 128-$newprefixlen, $_), $newprefixlen]  } 0..($n-1);
+	return list_ip_noncidr $ipv6_params, @_;
 }
 
 sub find_zone_v6 {
@@ -743,7 +851,6 @@ sub find_zone_v6 {
 	}
 
 	return $bestzone6;
-
 }
 
 ##################################################
@@ -785,7 +892,7 @@ sub unpick_args {
 					$rzone6_file[$rzone6_count] = $file;
 
 					my $subnet = format_v6_reverse_inzone([parse_v6 $v6addr], 128, [0,0,0,0,0,0,0,0], 0);
-					my $subnet_name = sprintf "%s/%d.%s", substr($subnet, 0, 1), $prefixlen, substr($subnet, 2);
+					my $subnet_name = cname_hack $subnet, $prefixlen;
 					$rzone6_name[$rzone6_count] = $subnet_name . ".IP6.ARPA";
 
 					++$rzone6_count;
@@ -796,7 +903,8 @@ sub unpick_args {
 						my $subnet = format_v6_reverse_inzone($_->[0], $_->[1], [0,0,0,0,0,0,0,0], 0);
 						$rzone6_prefix[$rzone6_count] = $_->[0];
 						$rzone6_prefixlen[$rzone6_count] = $_->[1];
-						$rzone6_file[$rzone6_count] = $file . (@l == 1 ? "" : "." . (substr $subnet, 0, 1));
+						$subnet =~ /^([^.]+)/;
+						$rzone6_file[$rzone6_count] = $file . (@l == 1 ? "" : ".$1");
 						$rzone6_name[$rzone6_count] = $subnet . ".IP6.ARPA";
 						++$rzone6_count;
 					}
@@ -804,50 +912,32 @@ sub unpick_args {
 			}
 			elsif($addr =~ /^(\d+)(?:\.(\d+)(?:\.(\d+)(?:\.(\d+))?)?)?(?:\/(\d+))?$/) {
 				my ($a, $b, $c, $d, $prefixlen) = ($1, $2||0, $3||0, $4||0, $5 || (defined $4 ? 32 : defined $3 ? 24 : defined $2 ? 16 : 8));
-
+				my $v4addr = "$a.$b.$c.$d";
 				&give_up("bad prefix length $prefixlen")
 				  if ( $prefixlen <= 0 || $prefixlen >= 32 );
 
-				my $num = ( $a << 24 ) | ( $b << 16 ) | ( $c << 8 ) | $d;
-				my $mask = 0xFFFFFFFF << ( 32 - $prefixlen );
-				&give_up(
-					"bad network $a.$b.$c.$d/$prefixlen: mask not fitting network number")
-				  if (
-					( $num & ~$mask ) );
-
-				if($prefixlen > 24) {
+				if($prefixlen > 32-8) {
 					# detect a "CNAME delegation"
+					$rzone_prefix[$rzone_count] = [parse_v4 $v4addr];
+					$rzone_prefixlen[$rzone_count] = $prefixlen;
 					$rzone_file[$rzone_count] = $file;
-					$rzone_number[$rzone_count] = ( $a << 24 ) | ( $b << 16 ) | ( $c << 8 ) | $d;
-					$rzone_mask[$rzone_count] = 0xFFFFFFFF << ( 32 - $prefixlen );
-					$rzone_name[$rzone_count] = "$prefixlen/$d.$c.$b.$a.IN_ADDR.ARPA";
-					$rzone_mask_length[ $rzone_count++ ] = $prefixlen;
-				} elsif($prefixlen > 16) {
-					# detect a "multi-NS delegation" and use multiple zone files then
-					for(0..(1 << (24 - $prefixlen))-1) {
-						$rzone_file[$rzone_count] = $file . ($prefixlen == 24 ? "" : "." . ($c+$_));
-						$rzone_number[$rzone_count] = ( $a << 24 ) | ( $b << 16 ) | ( ($c+$_) << 8 );
-						$rzone_mask[$rzone_count] = 0xFFFFFFFF << ( 32 - $prefixlen );
-						$rzone_name[$rzone_count] = "@{[$c+$_]}.$b.$a.IN_ADDR.ARPA";
-						$rzone_mask_length[ $rzone_count++ ] = $prefixlen;
-					}
-				} elsif($prefixlen > 8) {
-					# detect a "multi-NS delegation" and use multiple zone files then
-					for(0..(1 << (16 - $prefixlen))-1) {
-						$rzone_file[$rzone_count] = $file . ($prefixlen == 16 ? "" : "." . ($b+$_));
-						$rzone_number[$rzone_count] = ( $a << 24 ) | ( ($b+$_) << 16 );
-						$rzone_mask[$rzone_count] = 0xFFFFFFFF << ( 32 - $prefixlen );
-						$rzone_name[$rzone_count] = "@{[$b+$_]}.$a.IN_ADDR.ARPA";
-						$rzone_mask_length[ $rzone_count++ ] = $prefixlen;
-					}
+
+					my $subnet = format_v4_reverse_inzone([parse_v4 $v4addr], 32, [0,0,0,0], 0);
+					my $subnet_name = cname_hack $subnet, $prefixlen;
+					$rzone_name[$rzone_count] = $subnet_name . ".IN-ADDR.ARPA";
+
+					++$rzone_count;
 				} else {
 					# detect a "multi-NS delegation" and use multiple zone files then
-					for(0..(1 << (8 - $prefixlen))-1) {
-						$rzone_file[$rzone_count] = $file . ($prefixlen == 8 ? "" : "." . ($a+$_));
-						$rzone_number[$rzone_count] = ( ($a+$_) << 24 );
-						$rzone_mask[$rzone_count] = 0xFFFFFFFF << ( 32 - $prefixlen );
-						$rzone_name[$rzone_count] = "@{[$a+$_]}.IN_ADDR.ARPA";
-						$rzone_mask_length[ $rzone_count++ ] = $prefixlen;
+					my @l = list_v4_noncidr [parse_v4 $v4addr], $prefixlen;
+					for(@l) {
+						my $subnet = format_v4_reverse_inzone($_->[0], $_->[1], [0,0,0,0], 0);
+						$rzone_prefix[$rzone_count] = $_->[0];
+						$rzone_prefixlen[$rzone_count] = $_->[1];
+						$subnet =~ /^([^.]+)/;
+						$rzone_file[$rzone_count] = $file . (@l == 1 ? "" : ".$1");
+						$rzone_name[$rzone_count] = $subnet . ".IN-ADDR.ARPA";
+						++$rzone_count;
 					}
 				}
 			} else {
@@ -1298,9 +1388,9 @@ sub handle_record {
 
 	if ( $type eq "A" ) {
 		my ($rzone);
-		my ($nn) = $names{"$name"} || 0;
-		my ( $a, $b, $c, $d ) =
-		  $rest =~ /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+		my ($nn)              = $names{"$name"} || 0;
+		my (@addr)            = parse_v4($rest);
+		my ($addr_normalized) = format_v4_forward @addr;
 
 		if ( $duplicate_name_check && $printname !~ /^\s*$/ && $nn > 0 ) {
 			&error( "unexpected duplicate name.\n"
@@ -1309,38 +1399,19 @@ sub handle_record {
 
 		$names{"$name"} = $nline if !$nn || $nn == $used_other;
 
-		if ( $a eq "" ) {
-			&error("IP address is incomplete.");
-			return;
-		}
-
-		if ( $a > 255 || $b > 255 || $c > 255 || $d > 255 ) {
-			&error(
-				"IP address contains component with value greater than 255.");
-			return;
-		}
-
-		&error("broadcast address not allowed.")
-		  if ( ( $a >= 192 && $d == 255 )
-			|| ( $a < 192 && $c == 255 && $d == 255 ) );
 
 		# The loopback address is always treated as external
 
 		$external_net = $forwards_only = 1
-		  if ( $rest =~ /^\s*127\.0\.0\.1\s*$/ );
+		  if ( $addr_normalized eq "127.0.0.1" );
 
 		# Check known network (& find network) unless external
 
 		if ( !$external_net ) {
-
-			# modified to support CIDR-Style nets
-			my ($net) = ( $a << 24 ) | ( $b << 16 ) | ( $c << 8 ) | $d;
-
-			$rzone = &find_zone($net);
+			$rzone = &find_zone_v4( 0, @addr );
 
 			if ( $rzone >= $rzone_count ) {
-				&error(
-"IP address is not in a known network (use >E for externals)."
+				&error("IP address is not in a known network (use >E for externals)."
 				);
 				return;
 			}
@@ -1348,13 +1419,14 @@ sub handle_record {
 
 		# Output the A record to the forward file, unless reverse-only record.
 
-		print $thiszone_handle "$printname  $ttl  $class  A  $rest\n" if !$reverse_only;
+		print $thiszone_handle "$printname  $ttl  $class  A  $addr_normalized\n"
+			if !$reverse_only;
 
 		# If required, generate a PTR record for the reverse file. Check for
 		# multiples, and complain unless the record is flagged as such.
 
 		if ( !$forwards_only ) {
-			my $thisaddress = "$a.$b.$c.$d";
+			my $thisaddress = $addr_normalized;
 			if ( $addresses{"$thisaddress"} && !$multiple ) {
 				&error(
 "duplicate IP address $thisaddress specified for a PTR record.\n"
@@ -1366,10 +1438,7 @@ sub handle_record {
 
 				# modified to support CIDR-Style networks
 				my ($handle) = $rzone_handle[$rzone];
-				my ($e)      = $rzone_mask_length[$rzone];
-				print $handle "$d";
-				print $handle ".$c" if ( $e < 24 );
-				print $handle ".$b" if ( $e < 16 );
+				print $handle format_v4_reverse_inzone(\@addr, 32, $rzone_prefix[$rzone], $rzone_prefixlen[$rzone]);
 				print $handle "  $ttl  $class  PTR  $name";
 				print $handle ".$thiszone_name."
 				  if ( substr( $name, -1, 1 ) ne "." );
@@ -1403,13 +1472,11 @@ sub handle_record {
 
 		# Check known network (& find network) unless external
 
-		# TODO Ipv6
 		if ( !$external_net ) {
 			$rzone = &find_zone_v6( 0, @addr );
 
 			if ( $rzone >= $rzone6_count ) {
-				&error(
-"IP address is not in a known network (use >E for externals)."
+				&error("IP address is not in a known network (use >E for externals)."
 				);
 				return;
 			}
@@ -1505,7 +1572,6 @@ sub handle_record {
 			}
 			else {
 				my $thisaddress = $addr_normalized;
-				my $e           = $rzone_mask_length[$rzone];
 				if ( $addresses{"$thisaddress"} && !$multiple ) {
 					&error(
 "duplicate IP address $thisaddress specified for a PTR record.\n"
@@ -1526,35 +1592,18 @@ sub handle_record {
 			}
 		}
 		else {
-			my ( $a, $b, $c, $d ) =
-			  $name =~ /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
-
-			if ( $a eq "" ) {
-				&error("name on PTR record must be complete IP address");
-				return;
-			}
-
-			if ( $a > 255 || $b > 255 || $c > 255 || $d > 255 ) {
-				&error(
-					"IP address contains component with value greater than 255."
-				);
-				return;
-			}
-
-			# printf ("%d - %d - %d - %d\n", $a, $b, $c, $d);
+			my @addr = parse_v4 $name;
+			my ($addr_normalized) = format_v4_forward @addr;
 
 			&check_fqn( $rest, "PTR" );
 
-			$net = ( $a << 24 ) | ( $b << 16 ) | ( $c << 8 ) | $d;
-
-			$rzone = &find_zone($net);
+			$rzone = &find_zone_v4( 0, @addr );
 
 			if ( $rzone >= $rzone_count ) {
 				&error("wrong PTR: $net is not part of a known network.");
 			}
 			else {
-				my $thisaddress = "$a.$b.$c.$d";
-				my $e           = $rzone_mask_length[$rzone];
+				my $thisaddress = $addr_normalized;
 				if ( $addresses{"$thisaddress"} && !$multiple ) {
 					&error(
 "duplicate IP address $thisaddress specified for a PTR record.\n"
@@ -1564,10 +1613,11 @@ sub handle_record {
 				}
 				else {
 					my ($handle) = $rzone_handle[$rzone];
-					print $handle "$d";
-					print $handle ".$c" if $e < 24;
-					print $handle ".$b" if $e < 16;
-					print $handle "  $ttl $class  PTR  $rest\n";
+					print $handle format_v4_reverse_inzone(\@addr, 32, $rzone_prefix[$rzone], $rzone_prefixlen[$rzone]);
+					print $handle "  $ttl  $class  PTR  $rest";
+					print $handle ".$thiszone_name."
+					  if ( substr( $rest, -1, 1 ) ne "." );
+					print $handle "\n";
 					$addresses{"$thisaddress"} = $nline
 					  if !$addresses{"$thisaddress"};
 				}
@@ -1656,8 +1706,9 @@ sub handle_record {
 				my @subnet_list = list_v6_noncidr \@addr, $prefixlen;
 				my $supernet = format_v6_reverse_inzone($subnet_list[0]->[0], $subnet_list[0]->[1], [0,0,0,0,0,0,0,0], 0);
 				for(@subnet_list) {
-					my $subnet = format_v6_reverse_inzone($_->[0], $_->[1], [0,0,0,0,0,0,0,0], 0);
-					my $subnet_name = sprintf "%s.%s/%d.%s", substr($subnet, 0, 1), substr($supernet, 0, 1), $prefixlen, substr($supernet, 2);
+					my $subnet = format_v6_reverse_inzone($_->[0], $_->[1], $rzone6_prefix[$rzone], $rzone6_prefixlen[$rzone]);
+					$subnet =~ /^([^.]+)/;
+					my $subnet_name = sprintf "%s.%s", $1, cname_hack $supernet, $prefixlen;
 					print $handle "$subnet  $ttl  $class  CNAME  $subnet_name.IP6.ARPA.\n";
 				}
 			} else {
@@ -1666,83 +1717,45 @@ sub handle_record {
 				print $handle "$subnet  $ttl  $class  NS  $rest\n";
 			}
 		}
-		elsif ( $name =~ /^\d/ ) {
+		elsif($name =~ /^(\d+)(?:\.(\d+)(?:\.(\d+)(?:\.(\d+))?)?)?(?:\/(\d+))?$|^(\d+)\/(\d+)\.(\d+)\.(\d+)\.(\d+)$/) {
+			my ($a, $b, $c, $d, $prefixlen) =
+				$1
+					? ($1, $2||0, $3||0, $4||0, $5 || (defined $4 ? 32 : defined $3 ? 24 : defined $2 ? 16 : 8))
+					: ($10, $9, $8, $6, $7);
 			my ( $net, $rzone, $r_e );
 			my ($cidr_extension) = 1;
-			my ( $d, $e, $c, $b, $a ) = $name =~
-			  /^(\d{1,3})\/(\d{1,2})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
-			if ( $a eq "" ) {
+			my $addr = "$a.$b.$c.$d";
+			my @addr = parse_v4 $addr;
+
+			if($prefixlen % 8 == 0) {
 				$cidr_extension = 0;
-				$e              = 24;
-				( $c, $b, $a ) = $name =~ /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
-			}
-			if ( $a eq "" ) {
-				$e = 16;
-				( $b, $a ) = $name =~ /^(\d{1,3})\.(\d{1,3})$/;
 			}
 
-			if ( $cidr_extension && !($e % 8) ) {
-				&error("subnet $name on NS record must be specified without netmask (no CIDR delegation)");
-				return;
-			}
-
-			if ( $a eq "" ) {
-				&error("subnet $name on NS record is invalid.");
-				return;
-			}
-
-			$net = ( $a << 24 ) | ( $b << 16 ) | ( $c << 8 ) | $d;
-
-			$rzone = &find_zone( $net, 1 );
+			$rzone = &find_zone_v4( 1, @addr );
 
 			if ( $rzone >= $rzone_count ) {
-				&error("$a.$b.$c.$d/$e is not a subnet of a known network.");
-			}
-			elsif (( ( $r_e = $rzone_mask_length[$rzone] ) + 2 > $e )
-				|| ( $e > 30 ) )
-			{
-				&error("$net is not a legal subnet of a known network.");
-			}
-			elsif ( $cidr_extension && ( $e < 25 ) ) {
-				&error("delegation $net/$e: only masks above 24 supported.");
-
-			 # this error is somewhat special in that masks < 24 could
-			 # be supported without much effort by the same method.
-			 # But the abovementioned internet draft for unaligned delegations
-			 # specifically suggests
-			 # not to use this method for such nets, but to aggregate
-			 # border-aligned class-c or class-b delegations respectively.
-			 # This script should (but currently doesn't) support this as well.
-			 # Supporting this on the delegating side is straightforward, whreas
-			 # supporting it on the delgated side is somewhat tricky.
-
-			}
-			else {
-				my ($subnet);
-				if ($cidr_extension) { $subnet = "$d/$e"; }
-				if ( $r_e < 24 )     { $subnet = "$subnet.$c"; }
-				if ( $r_e < 16 )     { $subnet = "$subnet.$b"; }
-
+				&error("$addr/$prefixlen is not a subnet of a known network.");
+			} elsif ($cidr_extension && $prefixlen < 32-8) { # multi NS
 				my ($handle) = $rzone_handle[$rzone];
-				print $handle "$subnet  $ttl  $class  NS  $rest\n";
-
-				if ( $create_delegated_subnet_cnames && $cidr_extension ) {
-					my ($name_xt) = "";
-					my ($i);
-
-					# first we discover the number of hosts to be created
-					my ($maxhost) = 2**( 32 - $e ) + $d - 2;
-
-				   # now we need the string to append to the names (may be zero)
-					if ( $r_e < 24 ) { $name_xt = ".$c"; }
-					if ( $r_e < 16 ) { $name_xt = ".$c.$b"; }
-
-					my ($target_xt) = ".$d/$e.$c.$b.$a.IN-ADDR.ARPA.";
-					for ( $i = $d + 1 ; $i <= $maxhost ; $i++ ) {
-						print $handle
-						  "$i$name_xt  $ttl  $class  CNAME  $i$target_xt\n";
-					}
+				my @subnet_list = list_v4_noncidr \@addr, $prefixlen;
+				for(@subnet_list) {
+					my $subnet = format_v4_reverse_inzone($_->[0], $_->[1], $rzone_prefix[$rzone], $rzone_prefixlen[$rzone]);
+					print $handle "$subnet  $ttl  $class  NS  $rest\n";
 				}
+			} elsif ($cidr_extension && $prefixlen > 32-8) { # CNAME hack
+				my ($handle) = $rzone_handle[$rzone];
+				my @subnet_list = list_v4_noncidr \@addr, $prefixlen;
+				my $supernet = format_v4_reverse_inzone($subnet_list[0]->[0], $subnet_list[0]->[1], [0,0,0,0,0,0,0,0], 0);
+				for(@subnet_list) {
+					my $subnet = format_v4_reverse_inzone($_->[0], $_->[1], $rzone_prefix[$rzone], $rzone_prefixlen[$rzone]);
+					$subnet =~ /^([^.]+)/;
+					my $subnet_name = sprintf "%s.%s", $1, cname_hack $supernet, $prefixlen;
+					print $handle "$subnet  $ttl  $class  CNAME  $subnet_name.IN-ADDR.ARPA.\n";
+				}
+			} else {
+				my ($handle) = $rzone_handle[$rzone];
+				my $subnet = format_v4_reverse_inzone(\@addr, $prefixlen, $rzone_prefix[$rzone], $rzone_prefixlen[$rzone]);
+				print $handle "$subnet  $ttl  $class  NS  $rest\n";
 			}
 		}
 
@@ -2004,19 +2017,17 @@ sub generate_zones {
 						  if $i >= $rzone6_count;
 					}
 				}
-				else {
+				elsif($zone =~ /^(\d+)(?:\.(\d+)(?:\.(\d+)(?:\.(\d+))?)?)?(?:\/(\d+))?$/) {
+					my ($a, $b, $c, $d, $prefixlen) = ($1, $2||0, $3||0, $4||0, $5 || (defined $4 ? 32 : defined $3 ? 24 : defined $2 ? 16 : 8));
 					my ($i);
-					my ( $a, $b, $c, $d ) = $zone =~
-					  /^\s*(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\s*$/;
-					if ( $a eq "" ) {
-						&error(
-"wrong zone name or malformed network number on NS record"
-						);
-					}
-					else {
-						my $zn = ( $a << 24 ) | ( $b << 16 ) | ( $c << 8 ) | $d;
+					&error("bad prefix length $prefixlen")
+					  if ( $prefixlen % 8
+						|| $prefixlen <= 0
+						|| $prefixlen >= 32 );
+					my @addr   = parse_v4 "$1.$2.$3.$4";
+					{
 						for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
-							if ( $rzone_number[$i] == $zn ) {
+							if ( $prefixlen == $rzone_prefixlen[$i] && match_prefix_v4 \@addr, $rzone_prefix[$i], 32 ) {
 								my ($handle) = $rzone_handle[$i];
 								print $handle "  $ttl  $class  NS  $ns\n";
 								last;
