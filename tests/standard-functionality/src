@@ -1,0 +1,25 @@
+; Domainsource lab.example.org
+$TTL 300
+@	300	IN	SOA	login.lab.example.org. me.lab.example.org. (
+				2011010742	;serial
+				60		;Refresh
+				30		;Retry
+				604800		;Expire
+				300 )		;Minimum
+
+				IN	NS	ns1.lab.example.org.
+				IN	NS	ns2.lab.example.org.
+
+router			IN	A	192.0.2.1
+router-failover1	IN	A	192.0.2.2
+router-failover2	IN	A	192.0.2.3
+
+; normal-comment
+;F forward-comment
+;R reverse-comment
+
+rr-comment		IN	A	192.0.2.4 ; rr-comment
+
+>R reverse-only		IN	A	192.0.2.5
+>F forward-only		IN	A	192.0.2.6
+192.0.2.7		IN	PTR	reverse-only-2.lab.example.org.

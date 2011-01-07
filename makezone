@@ -1145,19 +1145,19 @@ sub handle_record {
    # the right thing happens if the tab is not removed.
 
 	my $rest;
-	if (/^>E\s+(.*)/) {
+	if (/^>E(?=\s) ?(.*)/) {
 		$forwards_only = $external_net = 1;
 		$rest = $1;
 	}
-	elsif (/^>F\s+(.*)/) {
+	elsif (/^>F(?=\s) ?(.*)/) {
 		$forwards_only = 1;
 		$rest = $1;
 	}
-	elsif (/^>M\s+(.*)/) {
+	elsif (/^>M(?=\s) ?(.*)/) {
 		$multiple = 1;
 		$rest = $1;
 	}
-	elsif (/^>R\s+(.*)/) {
+	elsif (/^>R(?=\s) ?(.*)/) {
 		$reverse_only = 1;
 		$rest = $1;
 	}

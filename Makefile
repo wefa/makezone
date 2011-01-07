@@ -58,3 +58,6 @@ hosts:  $(SRCS) makehosts.awk sorthosts.awk Makefile
 backup: $(ALLSRCES:C/\$/.sav/) 
 
 #backup: $(ALLSRCES:C/(.*)/saveflags\/\1.sav/) 
+
+test:
+	cd tests && sh run-test.sh
