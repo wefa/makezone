@@ -1,5 +1,6 @@
 #!/bin/sh
 
+ret=0
 for T in */; do
 	rm -rf "$T/out"
 	(
@@ -13,5 +14,7 @@ for T in */; do
 		echo "$T GOOD"
 	else
 		echo "$T FAILED"
+		ret=$(($ret+1))
 	fi
 done
+exit $ret
