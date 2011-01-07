@@ -687,7 +687,7 @@ sub parse_v4 {
 
 sub format_v4_forward {
 	my (@addr) = @_;
-	return sprintf "%3d.%3d.%3d.%3d", @addr;
+	return sprintf "%d.%d.%d.%d", @addr;
 }
 
 # format a v4 address as part of a given reverse zone (prefix, prefixlen)
@@ -1272,8 +1272,8 @@ sub handle_record {
 	# MX records for their entire zone, and we allow the first component of
 	# names on MX records to be "*".
 
-	my $thiszone_name = $zone_name[0];
-	my $thiszone_handle = $zone_handle[0];
+	my $thiszone_name = $zone_name[$default_zone];
+	my $thiszone_handle = $zone_handle[$default_zone];
 	for my $zi(0..@zone_name-1) {
 		my $zn = $zone_name[$zi];
 		if($name =~ s/\.\Q$zn\E\.$//) {
@@ -1282,6 +1282,8 @@ sub handle_record {
 			last;
 		}
 	}
+
+	my $fqdn;
 
 	if ( $name eq "@" ) {
 		$name = "$thiszone_name.";
@@ -1313,6 +1315,7 @@ sub handle_record {
 			&error("invalid name field for this type of record.");
 			$name = $lastname = "dummy";    # prevent subsequent errors
 		}
+		$fqdn = "$name.in-addr.arpa.";
 	}
 	elsif ( $name !~ /^$name_pattern(\.$name_pattern)*$/o ) {
 
@@ -1324,11 +1327,19 @@ sub handle_record {
 		}
 	}
 
+	if(!defined $fqdn) {
+		if($name =~ /\.$/) {
+			$fqdn = "$name";
+		} else {
+			$fqdn = "$name.$thiszone_name.";
+		}
+	}
+
 	# If the name on this record previously appeared on a RESERVE
 	# record, it is an error. Let processing continue, however, to
 	# detect other errors.
 
-	if ( $names{"$name"} && $names{"$name"} == $used_reserve ) {
+	if ( $names{"$fqdn"} && $names{"$fqdn"} == $used_reserve ) {
 		&error("$name appeared on a previous RESERVE record.");
 	}
 
@@ -1336,11 +1347,11 @@ sub handle_record {
 	# appeared on a CNAME record, it is an error. Set the value back
 	# to nothing, to prevent multiple complaints.
 
-	if ( $names{"$name"} && $names{"$name"} < 0 && $names{"$name"} > $used_dup )
+	if ( $names{"$fqdn"} && $names{"$fqdn"} < 0 && $names{"$fqdn"} > $used_dup )
 	{
-		my $temp = -$names{"$name"};
-		&error("$name appears on a previous CNAME record (line $temp).");
-		$names{"$name"} = "";
+		my $temp = -$names{"$fqdn"};
+		&error("$fqdn appears on a previous CNAME record (line $temp).");
+		$names{"$fqdn"} = "";
 	}
 
 	# Now we perform individual check which depend on the
@@ -1360,7 +1371,7 @@ sub handle_record {
 			&error("malformed TXT record - must use double quotes.");
 		}
 		print $thiszone_handle "$printname  $ttl  $class  TXT  $rest";
-		$names{"$name"} = $used_other if $names{"$name"};
+		$names{"$fqdn"} = $used_other if $names{"$fqdn"};
 		return;
 	}
 
@@ -1379,10 +1390,10 @@ sub handle_record {
 	if ( $type eq "RESERVE" ) {
 		&error("malformed RESERVE record (text after RESERVE).")
 		  if $rest !~ /^$/;
-		if ( $names{"$name"} ) {
+		if ( $names{"$fqdn"} ) {
 			&error("reserved name $name previously used.");
 		}
-		else { $names{"$name"} = $used_reserve; }
+		else { $names{"$fqdn"} = $used_reserve; }
 		return;
 	}
 
@@ -1391,7 +1402,7 @@ sub handle_record {
 
 	if ( $type eq "A" ) {
 		my ($rzone);
-		my ($nn)              = $names{"$name"} || 0;
+		my ($nn)              = $names{"$fqdn"} || 0;
 		my (@addr)            = parse_v4($rest);
 		my ($addr_normalized) = format_v4_forward @addr;
 
@@ -1400,7 +1411,7 @@ sub handle_record {
 				  . "** The first occurrence was in line $nn." );
 		}
 
-		$names{"$name"} = $nline if !$nn || $nn == $used_other;
+		$names{"$fqdn"} = $nline if !$nn || $nn == $used_other;
 
 
 		# The loopback address is always treated as external
@@ -1456,7 +1467,7 @@ sub handle_record {
 
 	if ( $type eq "AAAA" ) {
 		my ($rzone);
-		my ($nn)              = $names_v6{"$name"} || 0;
+		my ($nn)              = $names_v6{"$fqdn"} || 0;
 		my (@addr)            = parse_v6($rest);
 		my ($addr_normalized) = format_v6_forward @addr;
 
@@ -1465,8 +1476,8 @@ sub handle_record {
 				  . "** The first occurrence was in line $nn." );
 		}
 
-		$names_v6{"$name"} = $nline      if !$nn;
-		$names{"$name"}    = $used_other if !$names{"$name"};
+		$names_v6{"$fqdn"} = $nline      if !$nn;
+		$names{"$fqdn"}    = $used_other if !$names{"$fqdn"};
 
 		# The loopback address is always treated as external
 
@@ -1527,10 +1538,10 @@ sub handle_record {
 	# set back to null to prevent another one).
 
 	if ( $type eq "CNAME" ) {
-		my ($nn) = $names{"$name"} || 0;
+		my ($nn) = $names{"$fqdn"} || 0;
 		&check_fqn( $rest, "CNAME" );
 		if ( $nn == 0 ) {
-			$names{"$name"} = -$nline;
+			$names{"$fqdn"} = -$nline;
 			print $thiszone_handle "$name  $ttl $class  CNAME  $rest\n";
 		}
 		else {
@@ -1552,14 +1563,14 @@ sub handle_record {
 
 	if ( $type eq "PTR" ) {
 		my ( $net, $rzone );
-		my ($nn) = $names{"$name"} || 0;
+		my ($nn) = $names{"$fqdn"} || 0;
 
 		if ( $duplicate_name_check && $printname !~ /^\s*$/ && $nn > 0 ) {
 			&error( "unexpected duplicate name.\n"
 				  . "** The first occurrence was in line $nn." );
 		}
 
-		$names{"$name"} = $nline if !$nn || $nn == $used_other;
+		$names{"$fqdn"} = $nline if !$nn || $nn == $used_other;
 
 		if ( $name =~ /:/ )    # IPv6
 		{
@@ -1638,7 +1649,7 @@ sub handle_record {
 
 	if ( $type eq "DUP" ) {
 		&error("malformed DUP record (text after DUP).") if $rest !~ /^$/;
-		$names{"$name"} = $used_dup;
+		$names{"$fqdn"} = $used_dup;
 		return;
 	}
 
@@ -1648,7 +1659,7 @@ sub handle_record {
 	# entional value. This may be overridden by subsequent records
 	# such as A or PTR.
 
-	$names{"$name"} = $used_other if !$names{"$name"};
+	$names{"$fqdn"} = $used_other if !$names{"$fqdn"};
 
 	# Type SRV -- right now we just copy it to output [CWF]
 
