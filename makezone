@@ -547,6 +547,7 @@ my @zone_handle = ();
 
 my $rzone_count       = 0;
 my @rzone_file        = ();
+my @rzone_name        = ();
 my @rzone_mask        = ();
 my @rzone_mask_length = ();
 my @rzone_number      = ();
@@ -769,23 +770,22 @@ sub unpick_args {
 			++$zone_count;
 		} elsif(/^-r$/) {
 			# reverse zone(s)
-			my ($rzone) = shift @ARGV;
-			if($rzone =~ /(^db\.)(.*)\.\.(\d+)/)    # IPv6
+			my ($addr) = shift @ARGV;
+			my ($file) = shift @ARGV;
+			if($addr =~ /^(.*:.*)\/(\d+)$/)    # IPv6
 			{
-				my($prefix, $v6addr, $prefixlen) = ($1, $2, $3);
+				my($v6addr, $prefixlen) = ($1, $2);
 				&give_up("bad prefix length $prefixlen")
 				  if ( $prefixlen <= 0 || $prefixlen >= 128 );
-				$v6addr =~ s/\./:/g;
-				$v6addr .= "::";
 
 				if($prefixlen > 128-4) {
 					# detect a "CNAME delegation"
 					$rzone6_prefix[$rzone6_count] = [parse_v6 $v6addr];
 					$rzone6_prefixlen[$rzone6_count] = $prefixlen;
-					$rzone6_file[$rzone6_count] = $rzone;
+					$rzone6_file[$rzone6_count] = $file;
 
 					my $subnet = format_v6_reverse_inzone([parse_v6 $v6addr], 128, [0,0,0,0,0,0,0,0], 0);
-					my $subnet_name = sprintf "%d/%s", $prefixlen, $subnet;
+					my $subnet_name = sprintf "%s/%d.%s", substr($subnet, 0, 1), $prefixlen, substr($subnet, 2);
 					$rzone6_name[$rzone6_count] = $subnet_name . ".IP6.ARPA";
 
 					++$rzone6_count;
@@ -796,79 +796,62 @@ sub unpick_args {
 						my $subnet = format_v6_reverse_inzone($_->[0], $_->[1], [0,0,0,0,0,0,0,0], 0);
 						$rzone6_prefix[$rzone6_count] = $_->[0];
 						$rzone6_prefixlen[$rzone6_count] = $_->[1];
-						$rzone6_file[$rzone6_count] = $rzone . (@l == 1 ? "" : "." . (substr $subnet, 0, 1));
+						$rzone6_file[$rzone6_count] = $file . (@l == 1 ? "" : "." . (substr $subnet, 0, 1));
 						$rzone6_name[$rzone6_count] = $subnet . ".IP6.ARPA";
 						++$rzone6_count;
 					}
 				}
 			}
-			else {
-				$rzone_file[$rzone_count] = $rzone;
+			elsif($addr =~ /^(\d+)(?:\.(\d+)(?:\.(\d+)(?:\.(\d+))?)?)?(?:\/(\d+))?$/) {
+				my ($a, $b, $c, $d, $prefixlen) = ($1, $2||0, $3||0, $4||0, $5 || (defined $4 ? 32 : defined $3 ? 24 : defined $2 ? 16 : 8));
 
-				# Check explicitly for a class A, class B or a class C number. I couldn't
-				# find a cunning way of writing a single regular expression that
-				# handled this. Anyway, we need to differentiate in order to check
-				# the values.
+				&give_up("bad prefix length $prefixlen")
+				  if ( $prefixlen <= 0 || $prefixlen >= 32 );
 
-				# Here we add support for a 5-octet-form: 4 octet net number and the
-				# fifth giving the number of bits in the subnet mask. This is to support
-				# non-traditional net/mask combinations that get more and more common
-				# with CIDR. For this purpose we also add the rzone_mask array for storing
-				# the zone mask and rzone_mask_length for storing the mask length;
-				# Also the complete handling of the arguments is reworked. (CWF)
-
-				# the 0 + construct to force perl to assume a scalar context.
-				my ($i) = 0 + ( my @split = split( /\./, $rzone, 7 ) );
-				my ( $prefix, $a, $b, $c, $d, $e ) = @split;
-
-				# now do some sanitity checks
-				if ( $rzone !~ /^db(\.\d{1,3}){1,3}(\.\d{1,3}\.\d{1,2})?$/ ) {
-					&give_up("reverse zone $rzone: illegal format");
-				}
-				if (   ( 0 + ( 0 + $a | 0 + $b | 0 + $c | 0 + $d ) > 255 )
-					|| ( $e > 30 ) )
-				{
-					&give_up("reverse zone $rzone: illegal network number");
-				}
-
-				# first handle traditional style networks
-				if ( $i == 2 ) {
-					&give_up("bad class A network $a") if ( $a > 127 );
-					$e = 8;
-				}
-				elsif ( $i == 3 ) {
-					&give_up("bad class B network $a.$b")
-					  if ( $a < 128 || $a > 191 );
-					$e = 16;
-				}
-				elsif ( $i == 4 ) {
-					&give_up("bad class C network $a.$b.$c")
-					  if ( $a < 192 || $a > 223 );
-					$e = 24;
-				}
-
-				# now handle new style networks
-				elsif ( $i == 6 ) {
-					&give_up("bad network $a.$b.$c.$d/$e")
-					  if ( $e < 8 || $e > 30 );
-					&give_up("not byte-aligned netmasks < 24 not supported")
-					  if ( $e < 24 && ( $e % 8 ) != 0 );
-				}
-				else {
-
-					# this shouldn't happen!
-					&give_up("strange error with reverse zone $rzone");
-				}
-				$rzone_number[$rzone_count] =
-				  ( $a << 24 ) | ( $b << 16 ) | ( $c << 8 ) | $d;
-				$rzone_mask[$rzone_count] = 0xFFFFFFFF << ( 32 - $e );
-
-				# now a final sanity check
+				my $num = ( $a << 24 ) | ( $b << 16 ) | ( $c << 8 ) | $d;
+				my $mask = 0xFFFFFFFF << ( 32 - $prefixlen );
 				&give_up(
-					"bad network $a.$b.$c.$d/$e: mask not fitting network number")
+					"bad network $a.$b.$c.$d/$prefixlen: mask not fitting network number")
 				  if (
-					( $rzone_number[$rzone_count] & ~$rzone_mask[$rzone_count] ) );
-				$rzone_mask_length[ $rzone_count++ ] = $e;
+					( $num & ~$mask ) );
+
+				if($prefixlen > 24) {
+					# detect a "CNAME delegation"
+					$rzone_file[$rzone_count] = $file;
+					$rzone_number[$rzone_count] = ( $a << 24 ) | ( $b << 16 ) | ( $c << 8 ) | $d;
+					$rzone_mask[$rzone_count] = 0xFFFFFFFF << ( 32 - $prefixlen );
+					$rzone_name[$rzone_count] = "$prefixlen/$d.$c.$b.$a.IN_ADDR.ARPA";
+					$rzone_mask_length[ $rzone_count++ ] = $prefixlen;
+				} elsif($prefixlen > 16) {
+					# detect a "multi-NS delegation" and use multiple zone files then
+					for(0..(1 << (24 - $prefixlen))-1) {
+						$rzone_file[$rzone_count] = $file . ($prefixlen == 24 ? "" : "." . ($c+$_));
+						$rzone_number[$rzone_count] = ( $a << 24 ) | ( $b << 16 ) | ( ($c+$_) << 8 );
+						$rzone_mask[$rzone_count] = 0xFFFFFFFF << ( 32 - $prefixlen );
+						$rzone_name[$rzone_count] = "@{[$c+$_]}.$b.$a.IN_ADDR.ARPA";
+						$rzone_mask_length[ $rzone_count++ ] = $prefixlen;
+					}
+				} elsif($prefixlen > 8) {
+					# detect a "multi-NS delegation" and use multiple zone files then
+					for(0..(1 << (16 - $prefixlen))-1) {
+						$rzone_file[$rzone_count] = $file . ($prefixlen == 16 ? "" : "." . ($b+$_));
+						$rzone_number[$rzone_count] = ( $a << 24 ) | ( ($b+$_) << 16 );
+						$rzone_mask[$rzone_count] = 0xFFFFFFFF << ( 32 - $prefixlen );
+						$rzone_name[$rzone_count] = "@{[$b+$_]}.$a.IN_ADDR.ARPA";
+						$rzone_mask_length[ $rzone_count++ ] = $prefixlen;
+					}
+				} else {
+					# detect a "multi-NS delegation" and use multiple zone files then
+					for(0..(1 << (8 - $prefixlen))-1) {
+						$rzone_file[$rzone_count] = $file . ($prefixlen == 8 ? "" : "." . ($a+$_));
+						$rzone_number[$rzone_count] = ( ($a+$_) << 24 );
+						$rzone_mask[$rzone_count] = 0xFFFFFFFF << ( 32 - $prefixlen );
+						$rzone_name[$rzone_count] = "@{[$a+$_]}.IN_ADDR.ARPA";
+						$rzone_mask_length[ $rzone_count++ ] = $prefixlen;
+					}
+				}
+			} else {
+				&give_up("reverse zone $addr: illegal format");
 			}
 		} elsif(/^-/) {
 			&give_up("unknown option \"$ARGV[0]\"");
@@ -1674,7 +1657,7 @@ sub handle_record {
 				my $supernet = format_v6_reverse_inzone($subnet_list[0]->[0], $subnet_list[0]->[1], [0,0,0,0,0,0,0,0], 0);
 				for(@subnet_list) {
 					my $subnet = format_v6_reverse_inzone($_->[0], $_->[1], [0,0,0,0,0,0,0,0], 0);
-					my $subnet_name = sprintf "%s.%d/%s", substr($subnet, 0, 1), $prefixlen, $supernet;
+					my $subnet_name = sprintf "%s.%s/%d.%s", substr($subnet, 0, 1), substr($supernet, 0, 1), $prefixlen, substr($supernet, 2);
 					print $handle "$subnet  $ttl  $class  CNAME  $subnet_name.IP6.ARPA.\n";
 				}
 			} else {
@@ -2144,7 +2127,7 @@ sub rename_zones {
 			unlink("$zone_file[$i]$xt");
 		}
 		for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
-			print("\t$rzone_file[$i]\n") if $chatty;
+			print("\t$rzone_file[$i] ($rzone_name[$i])\n") if $chatty;
 			my $dummy =
 			  `$postprocess_command < $rzone_file[$i]$xt > $rzone_file[$i]$xt2`;
 			&give_up("postprocessing failed with $rzone_file[$i]")

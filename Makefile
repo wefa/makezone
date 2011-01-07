@@ -36,13 +36,15 @@ nameserver: db.example Makefile $(CONFS)
 db.example: example.src $(SCRIPTS)
 	cp example.src example.src.old
 	./makezone -short example.src \
-		-f lab.example.org db.org.example.lab \
-		-f sub.lab.example.org db.org.example.lab.sub \
-		-r db.192.0.2.0.24 \
-		-r db.2001.0db8.1234..48 \
-		-r db.2001.0db8.1234.4242..64 \
-		-r db.2001.0db8.1234.7778..61 \
-		-r db.2001.0db8.1234.7778.1111.2222.3333.4444..126
+		-f lab.example.org                            db.org.example.lab                           \
+		-f sub.lab.example.org                        db.org.example.lab.sub                       \
+		-r 192.0.2.0/24                               db.192.0.2.0.24                              \
+		-r 192.0.3.0/26                               db.192.0.3.0.26                              \
+		-r 192.1.0.0/22                               db.192.1.0.0.22                              \
+		-r 2001:db8:1234::/48                         db.2001.0db8.1234..48                        \
+		-r 2001:db8:1234:4242::/64                    db.2001.0db8.1234.4242..64                   \
+		-r 2001:db8:1234:7778::/61                    db.2001.0db8.1234.7778..61                   \
+		-r 2001:db8:1234:7778:1111:2222:3333:4444/126 2001.0db8.1234.7778.1111.2222.3333.4444..126
 
 
 hosts:  $(SRCS) makehosts.awk sorthosts.awk Makefile
