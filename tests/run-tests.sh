@@ -9,7 +9,7 @@ for T in */; do
 		mkdir out
 		sh run.sh
 	)
-	if diff -I "; serial" -Nru "$T/good" "$T/out"; then
+	if diff -I ";serial" -Nru "$T/good" "$T/out"; then
 		echo "$T GOOD"
 	else
 		echo "$T FAILED"
