@@ -60,4 +60,4 @@ backup: $(ALLSRCES:C/\$/.sav/)
 #backup: $(ALLSRCES:C/(.*)/saveflags\/\1.sav/) 
 
 test:
-	cd tests && sh run-test.sh
+	cd tests && sh run-tests.sh
