@@ -1110,6 +1110,9 @@ my $used_other   = -999999;
 my $used_reserve = -888888;
 my $used_dup     = -777777;
 
+# store whether the CIDR CNAME hack has been already done for this name
+my %done_cidr_hack = ();
+
 # Three associative arrays, %names, %names_v6 and %addresses, are used for checking
 # on the duplication of names and addresses. The check for CNAME and
 # other data is handled by the same mechanism. The values used in the
@@ -1705,11 +1708,17 @@ sub handle_record {
 				my ($handle) = $rzone6_handle[$rzone];
 				my @subnet_list = list_v6_noncidr \@addr, $prefixlen;
 				my $supernet = format_v6_reverse_inzone($subnet_list[0]->[0], $subnet_list[0]->[1], [0,0,0,0,0,0,0,0], 0);
-				for(@subnet_list) {
-					my $subnet = format_v6_reverse_inzone($_->[0], $_->[1], $rzone6_prefix[$rzone], $rzone6_prefixlen[$rzone]);
-					$subnet =~ /^([^.]+)/;
-					my $subnet_name = sprintf "%s.%s", $1, cname_hack $supernet, $prefixlen;
-					print $handle "$subnet  $ttl  $class  CNAME  $subnet_name.IP6.ARPA.\n";
+				my $supersubnet = format_v6_reverse_inzone($subnet_list[0]->[0], $subnet_list[0]->[1], $rzone6_prefix[$rzone], $rzone6_prefixlen[$rzone]);
+				print $handle cname_hack $supersubnet, $prefixlen;
+				print $handle "  $ttl  $class  NS  $rest\n";
+				my $chack = cname_hack $supernet, $prefixlen;
+				if(!$done_cidr_hack{$chack}++) {
+					for(@subnet_list) {
+						my $subnet = format_v6_reverse_inzone($_->[0], $_->[1], $rzone6_prefix[$rzone], $rzone6_prefixlen[$rzone]);
+						$subnet =~ /^([^.]+)/;
+						my $subnet_name = "$1.$chack";
+						print $handle "$subnet  $ttl  $class  CNAME  $subnet_name.IP6.ARPA.\n";
+					}
 				}
 			} else {
 				my ($handle) = $rzone6_handle[$rzone];
@@ -1746,11 +1755,17 @@ sub handle_record {
 				my ($handle) = $rzone_handle[$rzone];
 				my @subnet_list = list_v4_noncidr \@addr, $prefixlen;
 				my $supernet = format_v4_reverse_inzone($subnet_list[0]->[0], $subnet_list[0]->[1], [0,0,0,0,0,0,0,0], 0);
-				for(@subnet_list) {
-					my $subnet = format_v4_reverse_inzone($_->[0], $_->[1], $rzone_prefix[$rzone], $rzone_prefixlen[$rzone]);
-					$subnet =~ /^([^.]+)/;
-					my $subnet_name = sprintf "%s.%s", $1, cname_hack $supernet, $prefixlen;
-					print $handle "$subnet  $ttl  $class  CNAME  $subnet_name.IN-ADDR.ARPA.\n";
+				my $supersubnet = format_v4_reverse_inzone($subnet_list[0]->[0], $subnet_list[0]->[1], $rzone_prefix[$rzone], $rzone_prefixlen[$rzone]);
+				print $handle cname_hack $supersubnet, $prefixlen;
+				print $handle "  $ttl  $class  NS  $rest\n";
+				my $chack = cname_hack $supernet, $prefixlen;
+				if(!$done_cidr_hack{$chack}++) {
+					for(@subnet_list) {
+						my $subnet = format_v4_reverse_inzone($_->[0], $_->[1], $rzone_prefix[$rzone], $rzone_prefixlen[$rzone]);
+						$subnet =~ /^([^.]+)/;
+						my $subnet_name = "$1.$chack";
+						print $handle "$subnet  $ttl  $class  CNAME  $subnet_name.IN-ADDR.ARPA.\n";
+					}
 				}
 			} else {
 				my ($handle) = $rzone_handle[$rzone];
