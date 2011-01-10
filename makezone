@@ -646,6 +646,22 @@ sub list_ip_noncidr {
 	return map { [increment_ip($params, $newprefix, $params->{words}*$params->{bits}-$newprefixlen, $_), $newprefixlen]  } 0..($n-1);
 }
 
+sub find_zone_ip {
+	my ( $params, $subnet, @addr ) = @_;
+	my ( $rzone );
+
+	my $bestzone = undef;
+
+	for ( $rzone = 0 ; $rzone < scalar @{$params->{rzone}} ; $rzone++ ) {
+		my $cmp = match_prefix_ip $params, \@addr, $params->{rzone}[$rzone]{prefix}, $params->{rzone}[$rzone]{prefixlen};
+		$bestzone = $rzone
+		  if $cmp && (!defined $bestzone || $params->{rzone}[$rzone]{prefix} >= $params->{rzone}[$bestzone]{prefix})
+		  && ( ( $subnet == 0 ) || ( $cmp != 2 ) );
+	}
+
+	return $bestzone;
+}
+
 sub cname_hack {
 	my ($subnet, $prefixlen) = @_;
 
@@ -732,19 +748,7 @@ sub list_v4_noncidr {
 }
 
 sub find_zone_v4 {
-	my ( $subnet, @addr ) = @_;
-	my ( $rzone );
-
-	my $bestzone = undef;
-
-	for ( $rzone = 0 ; $rzone < scalar @rzone ; $rzone++ ) {
-		my $cmp = match_prefix_v4 \@addr, $rzone[$rzone]{prefix}, $rzone[$rzone]{prefixlen};
-		$bestzone = $rzone
-		  if $cmp && (!defined $bestzone || $rzone[$rzone]{prefix} >= $rzone[$bestzone]{prefix})
-		  && ( ( $subnet == 0 ) || ( $cmp != 2 ) );
-	}
-
-	return $bestzone;
+	return find_zone_ip $ipv4_params, @_;
 }
 
 ##################################################
@@ -830,24 +834,35 @@ sub list_v6_noncidr {
 }
 
 sub find_zone_v6 {
-	my ( $subnet, @addr ) = @_;
-	my ( $rzone6 );
-
-	my $bestzone6 = undef;
-
-	for ( $rzone6 = 0 ; $rzone6 < scalar @rzone6 ; $rzone6++ ) {
-		my $cmp = match_prefix_v6 \@addr, $rzone6[$rzone6]{prefix}, $rzone6[$rzone6]{prefixlen};
-		$bestzone6 = $rzone6
-		  if $cmp && (!defined $bestzone6 || $rzone6[$rzone6]{prefix} >= $rzone6[$bestzone6]{prefix})
-		  && ( ( $subnet == 0 ) || ( $cmp != 2 ) );
-	}
-
-	return $bestzone6;
+	return find_zone_ip $ipv6_params, @_;
 }
 
 ##################################################
 #            Common again                        #
 ##################################################
+
+sub parse_ip {
+	my ($params, @rest) = @_;
+	if ($params eq $ipv4_params) {
+		return parse_v4 @rest;
+	} elsif ($params eq $ipv6_params) {
+		return parse_v6 @rest;
+	} else {
+		&give_up("Invalid call to parse_ip");
+	}
+}
+
+sub format_ip_forward {
+	my ($params, @rest) = @_;
+	if ($params eq $ipv4_params) {
+		return format_v4_forward @rest;
+	} elsif ($params eq $ipv6_params) {
+		return format_v6_forward @rest;
+	} else {
+		&give_up("Invalid call to format_ip_forward");
+	}
+}
+
 sub format_ip_reverse_inzone {
 	my ($params, @rest) = @_;
 	if ($params eq $ipv4_params) {
@@ -858,6 +873,7 @@ sub format_ip_reverse_inzone {
 		&give_up("Invalid call to format_ip_reverse_inzone");
 	}
 }
+
 ##################################################
 #            Unpick the argument list            #
 ##################################################
