@@ -1,0 +1,25 @@
+; Domainsource lab.example.org
+$TTL 300
+@	300	IN	SOA	login.lab.example.org. me.lab.example.org. (
+				2011011001	;serial
+				60		;Refresh
+				30		;Retry
+				604800		;Expire
+				300 )		;Minimum
+			IN	NS	  ns1.lab.example.org.
+			IN	NS	  ns2.lab.example.org.
+1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0	IN	PTR	  router.lab.example.org.
+2.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0	IN	PTR	  router-failover1.lab.example.org.
+3.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0	IN	PTR	  router-failover2.lab.example.org.
+; reverse-comment
+4.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0	IN	PTR	  rr-comment.lab.example.org.
+5.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0	IN	PTR	  reverse-only.lab.example.org.
+7.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0	IN	PTR	  reverse-only-2.lab.example.org.
+4.3.2.1			IN	NS	  ns1.subdomain.lab.example.org.
+6.5			IN	NS	  ns1.subdomain.lab.example.org.
+7.5			IN	NS	  ns1.subdomain.lab.example.org.
+8/126.8.7.6.5.4.3.2.1.0.f.e.d.c.b.a.0.9.8.7	IN	NS	  ns1.subdomain.lab.example.org.
+8.8.7.6.5.4.3.2.1.0.f.e.d.c.b.a.0.9.8.7	IN	CNAME	  8.8/126.8.7.6.5.4.3.2.1.0.f.e.d.c.b.a.0.9.8.7.1.0.0.0.8.b.d.0.1.0.0.2.IP6.ARPA.
+9.8.7.6.5.4.3.2.1.0.f.e.d.c.b.a.0.9.8.7	IN	CNAME	  9.8/126.8.7.6.5.4.3.2.1.0.f.e.d.c.b.a.0.9.8.7.1.0.0.0.8.b.d.0.1.0.0.2.IP6.ARPA.
+a.8.7.6.5.4.3.2.1.0.f.e.d.c.b.a.0.9.8.7	IN	CNAME	  a.8/126.8.7.6.5.4.3.2.1.0.f.e.d.c.b.a.0.9.8.7.1.0.0.0.8.b.d.0.1.0.0.2.IP6.ARPA.
+b.8.7.6.5.4.3.2.1.0.f.e.d.c.b.a.0.9.8.7	IN	CNAME	  b.8/126.8.7.6.5.4.3.2.1.0.f.e.d.c.b.a.0.9.8.7.1.0.0.0.8.b.d.0.1.0.0.2.IP6.ARPA.
