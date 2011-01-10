@@ -545,11 +545,9 @@ my @zone_name = ();
 my @zone_file = ();
 my @zone_handle = ();
 
-my $rzone_count       = 0;
 my @rzone             = ();
 	# each member is a hash with members file, name, prefix, prefixlen, handle
 
-my $rzone6_count      = 0;
 my @rzone6            = ();
 	# each member is a hash with members file, name, prefix, prefixlen, handle
 
@@ -559,11 +557,11 @@ my @rzone6            = ();
 
 sub print_reverse {
 	my ($i);
-	for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
+	for ( $i = 0 ; $i < scalar @rzone ; $i++ ) {
 		my $handle = $rzone[$i]{handle};
 		print $handle $_[0];
 	}
-	for ( $i = 0 ; $i < $rzone6_count ; $i++ ) {
+	for ( $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
 		my $handle = $rzone6[$i]{handle};
 		print $handle $_[0];
 	}
@@ -581,8 +579,8 @@ sub print_forward {
 #   IPv4+6 support                               #
 ##################################################
 
-my $ipv4_params = { words => 4, bits =>  8, revbits => 8, rzone_count => \$rzone_count,  rzone => \@rzone  };
-my $ipv6_params = { words => 8, bits => 16, revbits => 4, rzone_count => \$rzone6_count, rzone => \@rzone6 };
+my $ipv4_params = { words => 4, bits =>  8, revbits => 8, rzone => \@rzone  };
+my $ipv6_params = { words => 8, bits => 16, revbits => 4, rzone => \@rzone6 };
 
 sub match_prefix_ip {
 	my ( $params, $addr, $net, $prefixlen ) = @_;
@@ -739,7 +737,7 @@ sub find_zone_v4 {
 
 	my $bestzone = undef;
 
-	for ( $rzone = 0 ; $rzone < $rzone_count ; $rzone++ ) {
+	for ( $rzone = 0 ; $rzone < scalar @rzone ; $rzone++ ) {
 		my $cmp = match_prefix_v4 \@addr, $rzone[$rzone]{prefix}, $rzone[$rzone]{prefixlen};
 		$bestzone = $rzone
 		  if $cmp && (!defined $bestzone || $rzone[$rzone]{prefix} >= $rzone[$bestzone]{prefix})
@@ -837,7 +835,7 @@ sub find_zone_v6 {
 
 	my $bestzone6 = undef;
 
-	for ( $rzone6 = 0 ; $rzone6 < $rzone6_count ; $rzone6++ ) {
+	for ( $rzone6 = 0 ; $rzone6 < scalar @rzone6 ; $rzone6++ ) {
 		my $cmp = match_prefix_v6 \@addr, $rzone6[$rzone6]{prefix}, $rzone6[$rzone6]{prefixlen};
 		$bestzone6 = $rzone6
 		  if $cmp && (!defined $bestzone6 || $rzone6[$rzone6]{prefix} >= $rzone6[$bestzone6]{prefix})
@@ -874,7 +872,7 @@ sub unpick_args_addzones {
 
 	if($prefixlen > $params->{bits} * $params->{words} - $params->{revbits}) {
 		# detect a "CNAME delegation"
-		my $zone = ($params->{rzone}[${$params->{rzone_count}}++] = {});
+		my $zone = ($params->{rzone}[scalar @{$params->{rzone}}] = {});
 		$zone->{prefix} = $prefix;
 		$zone->{prefixlen} = $prefixlen;
 		$zone->{file} = $file;
@@ -886,7 +884,7 @@ sub unpick_args_addzones {
 		my @l = list_ip_noncidr $params, $prefix, $prefixlen;
 		for(@l) {
 			my $subnet = format_ip_reverse_inzone($params, $_->[0], $_->[1], [(0) x $params->{words}], 0);
-			my $zone = ($params->{rzone}[${$params->{rzone_count}}++] = {});
+			my $zone = ($params->{rzone}[scalar @{$params->{rzone}}] = {});
 			$zone->{prefix} = $_->[0];
 			$zone->{prefixlen} = $_->[1];
 			$subnet =~ /^([^.]+)/;
@@ -898,8 +896,8 @@ sub unpick_args_addzones {
 
 sub unpick_args {
 	$zone_count  = 0;
-	$rzone_count  = 0;
-	$rzone6_count = 0;
+	@rzone  = ();
+	@rzone6 = ();
 
 	# Handle options
 
@@ -958,19 +956,19 @@ sub verify {
 	}
 	else { print "<none>\n"; }
 
-	printf "  Reverse zone file%s ", ( $rzone_count == 1 ) ? ": " : "s:";
-	if ( $rzone_count > 0 ) {
-		for ( my $i = 0 ; $i < $rzone_count ; $i++ ) {
+	printf "  Reverse zone file%s ", ( scalar @rzone == 1 ) ? ": " : "s:";
+	if ( scalar @rzone > 0 ) {
+		for ( my $i = 0 ; $i < scalar @rzone ; $i++ ) {
 			print " " x 22 if $i != 0;
 			print "$rzone[$i]{file}\n";
 		}
 	}
 	else { print "<none>\n"; }
 
-	printf "  v6 Reverse zone file%s ", ( $rzone6_count == 1 ) ? ": " : "s:";
+	printf "  v6 Reverse zone file%s ", ( scalar @rzone6 == 1 ) ? ": " : "s:";
 
-	if ( $rzone6_count > 0 ) {
-		for ( my $i = 0 ; $i < $rzone6_count ; $i++ ) {
+	if ( scalar @rzone6 > 0 ) {
+		for ( my $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
 			print " " x 22 if $i != 0;
 			print "$rzone6[$i]{file}\n";
 		}
@@ -1409,7 +1407,7 @@ sub handle_record {
 		if ( !$external_net ) {
 			$rzone = &find_zone_v4( 0, @addr );
 
-			if ( $rzone >= $rzone_count ) {
+			if ( $rzone >= scalar @rzone ) {
 				&error("IP address is not in a known network (use >E for externals)."
 				);
 				return;
@@ -1474,7 +1472,7 @@ sub handle_record {
 		if ( !$external_net ) {
 			$rzone = &find_zone_v6( 0, @addr );
 
-			if ( $rzone >= $rzone6_count ) {
+			if ( $rzone >= scalar @rzone6 ) {
 				&error("IP address is not in a known network (use >E for externals)."
 				);
 				return;
@@ -1566,7 +1564,7 @@ sub handle_record {
 
 			$rzone = &find_zone_v6( 0, @addr );
 
-			if ( $rzone >= $rzone6_count ) {
+			if ( $rzone >= scalar @rzone6 ) {
 				&error("wrong PTR: $net is not part of a known network.");
 			}
 			else {
@@ -1598,7 +1596,7 @@ sub handle_record {
 
 			$rzone = &find_zone_v4( 0, @addr );
 
-			if ( $rzone >= $rzone_count ) {
+			if ( $rzone >= scalar @rzone ) {
 				&error("wrong PTR: $net is not part of a known network.");
 			}
 			else {
@@ -1691,7 +1689,7 @@ sub handle_record {
 
 			$rzone = &find_zone_v6( 1, @addr );
 
-			if ( $rzone >= $rzone6_count ) {
+			if ( $rzone >= scalar @rzone6 ) {
 				&error("$addr/$prefixlen is not a subnet of a known network.");
 			} elsif ($cidr_extension && $prefixlen < 128-4) { # multi NS
 				my ($handle) = $rzone6[$rzone]{handle};
@@ -1738,7 +1736,7 @@ sub handle_record {
 
 			$rzone = &find_zone_v4( 1, @addr );
 
-			if ( $rzone >= $rzone_count ) {
+			if ( $rzone >= scalar @rzone ) {
 				&error("$addr/$prefixlen is not a subnet of a known network.");
 			} elsif ($cidr_extension && $prefixlen < 32-8) { # multi NS
 				my ($handle) = $rzone[$rzone]{handle};
@@ -1828,7 +1826,7 @@ sub handle_record {
 # NOTE: WKS records do not support IPv6 and are deprecated. So no v6 support here.
 			my $rzone = &find_zone($net);
 
-			if ( $rzone >= $rzone_count ) {
+			if ( $rzone >= scalar @rzone ) {
 				&error("$net is not a known network.");
 			}
 		}
@@ -1947,12 +1945,12 @@ sub generate_zones {
 		  || &give_up("unable to open $zone_file[$i].new");
 	}
 
-	for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
+	for ( $i = 0 ; $i < scalar @rzone ; $i++ ) {
 		open( $rzone[$i]{handle}, ">$rzone[$i]{file}.new" )
 		  || &give_up("unable to open $rzone[$i]{file}.new");
 	}
 
-	for ( $i = 0 ; $i < $rzone6_count ; $i++ ) {
+	for ( $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
 		open( $rzone6[$i]{handle}, ">$rzone6[$i]{file}.new" )
 		  || &give_up("unable to open $rzone6[$i]{file}.new");
 	}
@@ -2017,7 +2015,7 @@ sub generate_zones {
 						|| $prefixlen >= 128 );
 					my @addr   = parse_v6 $1;
 					{
-						for ( $i = 0 ; $i < $rzone6_count ; $i++ ) {
+						for ( $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
 							if ( $prefixlen == $rzone6[$i]{prefixlen} && match_prefix_v6 \@addr, $rzone6[$i]{prefix}, 128 ) {
 								my ($handle) = $rzone6[$i]{handle};
 								print $handle "  $ttl  $class  NS  $ns\n";
@@ -2025,7 +2023,7 @@ sub generate_zones {
 							}
 						}
 						&error("unknown network number on NS record")
-						  if $i >= $rzone6_count;
+						  if $i >= scalar @rzone6;
 					}
 				}
 				elsif($zone =~ /^(\d+)(?:\.(\d+)(?:\.(\d+)(?:\.(\d+))?)?)?(?:\/(\d+))?$/) {
@@ -2037,7 +2035,7 @@ sub generate_zones {
 						|| $prefixlen >= 32 );
 					my @addr   = parse_v4 "$1.$2.$3.$4";
 					{
-						for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
+						for ( $i = 0 ; $i < scalar @rzone ; $i++ ) {
 							if ( $prefixlen == $rzone[$i]{prefixlen} && match_prefix_v4 \@addr, $rzone[$i]{prefix}, 32 ) {
 								my ($handle) = $rzone[$i]{handle};
 								print $handle "  $ttl  $class  NS  $ns\n";
@@ -2045,7 +2043,7 @@ sub generate_zones {
 							}
 						}
 						&error("unknown network number on NS record")
-						  if $i >= $rzone_count;
+						  if $i >= scalar @rzone;
 					}
 				}
 			}
@@ -2075,8 +2073,8 @@ sub generate_zones {
 
 	close SOURCE;
 	for ( $i = 0 ; $i < $zone_count ; $i++ )   { close( $zone_handle[$i] ); }
-	for ( $i = 0 ; $i < $rzone_count ; $i++ )  { close( $rzone[$i]{handle} ); }
-	for ( $i = 0 ; $i < $rzone6_count ; $i++ ) { close( $rzone6[$i]{handle} ); }
+	for ( $i = 0 ; $i < scalar @rzone ; $i++ )  { close( $rzone[$i]{handle} ); }
+	for ( $i = 0 ; $i < scalar @rzone6 ; $i++ ) { close( $rzone6[$i]{handle} ); }
 }
 
 ##################################################
@@ -2121,10 +2119,10 @@ sub compare_lengths {
 	for ( $i = 0 ; $i < $zone_count ; $i++ ) {
 		&check_length("$zone_file[$i]");
 	}
-	for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
+	for ( $i = 0 ; $i < scalar @rzone ; $i++ ) {
 		&check_length("$rzone[$i]{file}");
 	}
-	for ( $i = 0 ; $i < $rzone6_count ; $i++ ) {
+	for ( $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
 		&check_length("$rzone6[$i]{file}");
 	}
 }
@@ -2148,7 +2146,7 @@ sub rename_zones {
 			  if ( $? >> 8 );
 			unlink("$zone_file[$i]$xt");
 		}
-		for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
+		for ( $i = 0 ; $i < scalar @rzone ; $i++ ) {
 			print("\t$rzone[$i]{file} ($rzone[$i]{name})\n") if $chatty;
 			my $dummy =
 			  `$postprocess_command < $rzone[$i]{file}$xt > $rzone[$i]{file}$xt2`;
@@ -2156,7 +2154,7 @@ sub rename_zones {
 			  if ( $? >> 8 );
 			unlink("$rzone[$i]{file}$xt");
 		}
-		for ( $i = 0 ; $i < $rzone6_count ; $i++ ) {
+		for ( $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
 			print("\t$rzone6[$i]{file} ($rzone6[$i]{name})\n") if $chatty;
 			my $dummy =
 			  `$postprocess_command < $rzone6[$i]{file}$xt > $rzone6[$i]{file}$xt2`;
@@ -2171,10 +2169,10 @@ sub rename_zones {
 	for ( $i = 0 ; $i < $zone_count ; $i++ ) {
 		rename( "$zone_file[$i]$xt", "$zone_file[$i]" );
 	}
-	for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
+	for ( $i = 0 ; $i < scalar @rzone ; $i++ ) {
 		rename( "$rzone[$i]{file}$xt", "$rzone[$i]{file}" );
 	}
-	for ( $i = 0 ; $i < $rzone6_count ; $i++ ) {
+	for ( $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
 		rename( "$rzone6[$i]{file}$xt", "$rzone6[$i]{file}" );
 	}
 
@@ -2193,11 +2191,11 @@ sub remove_temps {
 		unlink "$zone_file[$i].new";
 		unlink "$zone_file[$i].new2";
 	}
-	for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
+	for ( $i = 0 ; $i < scalar @rzone ; $i++ ) {
 		unlink "$rzone[$i]{file}.new";
 		unlink "$rzone[$i]{file}.new2";
 	}
-	for ( $i = 0 ; $i < $rzone6_count ; $i++ ) {
+	for ( $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
 		unlink "$rzone6[$i]{file}.new";
 		unlink "$rzone6[$i]{file}.new2";
 	}
@@ -2213,8 +2211,6 @@ sub remove_temps {
 # and compare_lengths() handle errors in this way - all the
 # other routines generate hard errors.
 
-$rzone6_count = 0;
-$rzone_count  = 0;
 $errors       = 0;
 $soa_count    = 6;
 
