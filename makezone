@@ -1452,7 +1452,7 @@ sub handle_record {
 
 				# modified to support CIDR-Style networks
 				my ($handle) = $rzone_handle[$rzone];
-				print $handle format_v4_reverse_inzone(\@addr, 32, $rzone_prefix[$rzone], $rzone_prefixlen[$rzone]);
+				print $handle format_v4_reverse_inzone(\@addr, 32, $rzone_prefix[$rzone], $rzone_prefixlen[$rzone] & 0xF8);
 				print $handle "  $ttl  $class  PTR  $name";
 				print $handle ".$thiszone_name."
 				  if ( substr( $name, -1, 1 ) ne "." );
@@ -1517,7 +1517,7 @@ sub handle_record {
 
 				# modified to support CIDR-Style networks
 				my ($handle) = $rzone6_handle[$rzone];
-				print $handle format_v6_reverse_inzone(\@addr, 128, $rzone6_prefix[$rzone], $rzone6_prefixlen[$rzone]);
+				print $handle format_v6_reverse_inzone(\@addr, 128, $rzone6_prefix[$rzone], $rzone6_prefixlen[$rzone] & 0xFC);
 				print $handle "  $ttl  $class  PTR  $name";
 				print $handle ".$thiszone_name."
 				  if ( substr( $name, -1, 1 ) ne "." );

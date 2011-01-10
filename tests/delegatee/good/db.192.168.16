@@ -1,0 +1,12 @@
+; Domainsource subdomain.lab.example.org
+$TTL 300
+@	300	IN	SOA	login.lab.example.org. me.lab.example.org. (
+				2011011001	;serial
+				60		;Refresh
+				30		;Retry
+				604800		;Expire
+				300 )		;Minimum
+			IN	NS	  ns1.subdomain.lab.example.org.
+			IN	NS	  ns2.subdomain.lab.example.org.
+1			IN	PTR	  host3.subdomain.lab.example.org.
+254			IN	PTR	  host4.subdomain.lab.example.org.
