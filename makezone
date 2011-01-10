@@ -546,18 +546,12 @@ my @zone_file = ();
 my @zone_handle = ();
 
 my $rzone_count       = 0;
-my @rzone_file        = ();
-my @rzone_name        = ();
-my @rzone_prefix      = ();
-my @rzone_prefixlen   = ();
-my @rzone_handle      = ();
+my @rzone             = ();
+	# each member is a hash with members file, name, prefix, prefixlen, handle
 
 my $rzone6_count      = 0;
-my @rzone6_file       = ();
-my @rzone6_name       = ();
-my @rzone6_prefix     = ();
-my @rzone6_prefixlen  = ();
-my @rzone6_handle     = ();
+my @rzone6            = ();
+	# each member is a hash with members file, name, prefix, prefixlen, handle
 
 ##################################################
 #       Print line to all reverse zone files     #
@@ -566,11 +560,11 @@ my @rzone6_handle     = ();
 sub print_reverse {
 	my ($i);
 	for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
-		my $handle = $rzone_handle[$i];
+		my $handle = $rzone[$i]{handle};
 		print $handle $_[0];
 	}
 	for ( $i = 0 ; $i < $rzone6_count ; $i++ ) {
-		my $handle = $rzone6_handle[$i];
+		my $handle = $rzone6[$i]{handle};
 		print $handle $_[0];
 	}
 }
@@ -587,8 +581,8 @@ sub print_forward {
 #   IPv4+6 support                               #
 ##################################################
 
-my $ipv4_params = { words => 4, bits =>  8, revbits => 8 };
-my $ipv6_params = { words => 8, bits => 16, revbits => 4 };
+my $ipv4_params = { words => 4, bits =>  8, revbits => 8, rzone_count => \$rzone_count,  rzone => \@rzone  };
+my $ipv6_params = { words => 8, bits => 16, revbits => 4, rzone_count => \$rzone6_count, rzone => \@rzone6 };
 
 sub match_prefix_ip {
 	my ( $params, $addr, $net, $prefixlen ) = @_;
@@ -746,9 +740,9 @@ sub find_zone_v4 {
 	my $bestzone = undef;
 
 	for ( $rzone = 0 ; $rzone < $rzone_count ; $rzone++ ) {
-		my $cmp = match_prefix_v4 \@addr, $rzone_prefix[$rzone], $rzone_prefixlen[$rzone];
+		my $cmp = match_prefix_v4 \@addr, $rzone[$rzone]{prefix}, $rzone[$rzone]{prefixlen};
 		$bestzone = $rzone
-		  if $cmp && (!defined $bestzone || $rzone_prefix[$rzone] >= $rzone_prefix[$bestzone])
+		  if $cmp && (!defined $bestzone || $rzone[$rzone]{prefix} >= $rzone[$bestzone]{prefix})
 		  && ( ( $subnet == 0 ) || ( $cmp != 2 ) );
 	}
 
@@ -844,9 +838,9 @@ sub find_zone_v6 {
 	my $bestzone6 = undef;
 
 	for ( $rzone6 = 0 ; $rzone6 < $rzone6_count ; $rzone6++ ) {
-		my $cmp = match_prefix_v6 \@addr, $rzone6_prefix[$rzone6], $rzone6_prefixlen[$rzone6];
+		my $cmp = match_prefix_v6 \@addr, $rzone6[$rzone6]{prefix}, $rzone6[$rzone6]{prefixlen};
 		$bestzone6 = $rzone6
-		  if $cmp && (!defined $bestzone6 || $rzone6_prefix[$rzone6] >= $rzone6_prefix[$bestzone6])
+		  if $cmp && (!defined $bestzone6 || $rzone6[$rzone6]{prefix} >= $rzone6[$bestzone6]{prefix})
 		  && ( ( $subnet == 0 ) || ( $cmp != 2 ) );
 	}
 
@@ -854,10 +848,53 @@ sub find_zone_v6 {
 }
 
 ##################################################
+#            Common again                        #
+##################################################
+sub format_ip_reverse_inzone {
+	my ($params, @rest) = @_;
+	if ($params eq $ipv4_params) {
+		return format_v4_reverse_inzone @rest;
+	} elsif ($params eq $ipv6_params) {
+		return format_v6_reverse_inzone @rest;
+	} else {
+		&give_up("Invalid call to format_ip_reverse_inzone");
+	}
+}
+##################################################
 #            Unpick the argument list            #
 ##################################################
 
 # Exit from the whole program on failure.
+
+sub unpick_args_addzones {
+	my ($params, $file, $prefix, $prefixlen) = @_;
+
+	&give_up("bad prefix length $prefixlen")
+		if ( $prefixlen <= 0 || $prefixlen >= $params->{bits} * $params->{words} );
+
+	if($prefixlen > $params->{bits} * $params->{words} - $params->{revbits}) {
+		# detect a "CNAME delegation"
+		my $zone = ($params->{rzone}[${$params->{rzone_count}}++] = {});
+		$zone->{prefix} = $prefix;
+		$zone->{prefixlen} = $prefixlen;
+		$zone->{file} = $file;
+		my $subnet = format_ip_reverse_inzone($params, $prefix, $params->{bits} * $params->{words}, [(0) x $params->{words}], 0);
+		my $subnet_name = cname_hack $subnet, $prefixlen;
+		$zone->{name} = $subnet_name . ".IP6.ARPA";
+	} else {
+		# detect a "multi-NS delegation" and use multiple zone files then
+		my @l = list_ip_noncidr $params, $prefix, $prefixlen;
+		for(@l) {
+			my $subnet = format_ip_reverse_inzone($params, $_->[0], $_->[1], [(0) x $params->{words}], 0);
+			my $zone = ($params->{rzone}[${$params->{rzone_count}}++] = {});
+			$zone->{prefix} = $_->[0];
+			$zone->{prefixlen} = $_->[1];
+			$subnet =~ /^([^.]+)/;
+			$zone->{file} = $file . (@l == 1 ? "" : ".$1");
+			$zone->{name} = $subnet . ".IP6.ARPA";
+		}
+	}
+}
 
 sub unpick_args {
 	$zone_count  = 0;
@@ -881,65 +918,13 @@ sub unpick_args {
 			my ($file) = shift @ARGV;
 			if($addr =~ /^(.*:.*)\/(\d+)$/)    # IPv6
 			{
-				my($v6addr, $prefixlen) = ($1, $2);
-				&give_up("bad prefix length $prefixlen")
-				  if ( $prefixlen <= 0 || $prefixlen >= 128 );
-
-				if($prefixlen > 128-4) {
-					# detect a "CNAME delegation"
-					$rzone6_prefix[$rzone6_count] = [parse_v6 $v6addr];
-					$rzone6_prefixlen[$rzone6_count] = $prefixlen;
-					$rzone6_file[$rzone6_count] = $file;
-
-					my $subnet = format_v6_reverse_inzone([parse_v6 $v6addr], 128, [0,0,0,0,0,0,0,0], 0);
-					my $subnet_name = cname_hack $subnet, $prefixlen;
-					$rzone6_name[$rzone6_count] = $subnet_name . ".IP6.ARPA";
-
-					++$rzone6_count;
-				} else {
-					# detect a "multi-NS delegation" and use multiple zone files then
-					my @l = list_v6_noncidr [parse_v6 $v6addr], $prefixlen;
-					for(@l) {
-						my $subnet = format_v6_reverse_inzone($_->[0], $_->[1], [0,0,0,0,0,0,0,0], 0);
-						$rzone6_prefix[$rzone6_count] = $_->[0];
-						$rzone6_prefixlen[$rzone6_count] = $_->[1];
-						$subnet =~ /^([^.]+)/;
-						$rzone6_file[$rzone6_count] = $file . (@l == 1 ? "" : ".$1");
-						$rzone6_name[$rzone6_count] = $subnet . ".IP6.ARPA";
-						++$rzone6_count;
-					}
-				}
+				my ($v6addr, $prefixlen) = ($1, $2);
+				unpick_args_addzones($ipv6_params, $file, [parse_v6($v6addr)], $prefixlen);
 			}
 			elsif($addr =~ /^(\d+)(?:\.(\d+)(?:\.(\d+)(?:\.(\d+))?)?)?(?:\/(\d+))?$/) {
 				my ($a, $b, $c, $d, $prefixlen) = ($1, $2||0, $3||0, $4||0, $5 || (defined $4 ? 32 : defined $3 ? 24 : defined $2 ? 16 : 8));
 				my $v4addr = "$a.$b.$c.$d";
-				&give_up("bad prefix length $prefixlen")
-				  if ( $prefixlen <= 0 || $prefixlen >= 32 );
-
-				if($prefixlen > 32-8) {
-					# detect a "CNAME delegation"
-					$rzone_prefix[$rzone_count] = [parse_v4 $v4addr];
-					$rzone_prefixlen[$rzone_count] = $prefixlen;
-					$rzone_file[$rzone_count] = $file;
-
-					my $subnet = format_v4_reverse_inzone([parse_v4 $v4addr], 32, [0,0,0,0], 0);
-					my $subnet_name = cname_hack $subnet, $prefixlen;
-					$rzone_name[$rzone_count] = $subnet_name . ".IN-ADDR.ARPA";
-
-					++$rzone_count;
-				} else {
-					# detect a "multi-NS delegation" and use multiple zone files then
-					my @l = list_v4_noncidr [parse_v4 $v4addr], $prefixlen;
-					for(@l) {
-						my $subnet = format_v4_reverse_inzone($_->[0], $_->[1], [0,0,0,0], 0);
-						$rzone_prefix[$rzone_count] = $_->[0];
-						$rzone_prefixlen[$rzone_count] = $_->[1];
-						$subnet =~ /^([^.]+)/;
-						$rzone_file[$rzone_count] = $file . (@l == 1 ? "" : ".$1");
-						$rzone_name[$rzone_count] = $subnet . ".IN-ADDR.ARPA";
-						++$rzone_count;
-					}
-				}
+				unpick_args_addzones($ipv4_params, $file, [parse_v4($v4addr)], $prefixlen);
 			} else {
 				&give_up("reverse zone $addr: illegal format");
 			}
@@ -977,7 +962,7 @@ sub verify {
 	if ( $rzone_count > 0 ) {
 		for ( my $i = 0 ; $i < $rzone_count ; $i++ ) {
 			print " " x 22 if $i != 0;
-			print "$rzone_file[$i]\n";
+			print "$rzone[$i]{file}\n";
 		}
 	}
 	else { print "<none>\n"; }
@@ -987,7 +972,7 @@ sub verify {
 	if ( $rzone6_count > 0 ) {
 		for ( my $i = 0 ; $i < $rzone6_count ; $i++ ) {
 			print " " x 22 if $i != 0;
-			print "$rzone6_file[$i]\n";
+			print "$rzone6[$i]{file}\n";
 		}
 	}
 	else { print "<none>\n"; }
@@ -1451,8 +1436,8 @@ sub handle_record {
 			else {
 
 				# modified to support CIDR-Style networks
-				my ($handle) = $rzone_handle[$rzone];
-				print $handle format_v4_reverse_inzone(\@addr, 32, $rzone_prefix[$rzone], $rzone_prefixlen[$rzone] & 0xF8);
+				my ($handle) = $rzone[$rzone]{handle};
+				print $handle format_v4_reverse_inzone(\@addr, 32, $rzone[$rzone]{prefix}, $rzone[$rzone]{prefixlen} & 0xF8);
 				print $handle "  $ttl  $class  PTR  $name";
 				print $handle ".$thiszone_name."
 				  if ( substr( $name, -1, 1 ) ne "." );
@@ -1516,8 +1501,8 @@ sub handle_record {
 			else {
 
 				# modified to support CIDR-Style networks
-				my ($handle) = $rzone6_handle[$rzone];
-				print $handle format_v6_reverse_inzone(\@addr, 128, $rzone6_prefix[$rzone], $rzone6_prefixlen[$rzone] & 0xFC);
+				my ($handle) = $rzone6[$rzone]{handle};
+				print $handle format_v6_reverse_inzone(\@addr, 128, $rzone6[$rzone]{prefix}, $rzone6[$rzone]{prefixlen} & 0xFC);
 				print $handle "  $ttl  $class  PTR  $name";
 				print $handle ".$thiszone_name."
 				  if ( substr( $name, -1, 1 ) ne "." );
@@ -1594,8 +1579,8 @@ sub handle_record {
 					);
 				}
 				else {
-					my ($handle) = $rzone6_handle[$rzone];
-					print $handle format_v6_reverse_inzone(\@addr, 128, $rzone6_prefix[$rzone], $rzone6_prefixlen[$rzone]);
+					my ($handle) = $rzone6[$rzone]{handle};
+					print $handle format_v6_reverse_inzone(\@addr, 128, $rzone6[$rzone]{prefix}, $rzone6[$rzone]{prefixlen});
 					print $handle "  $ttl  $class  PTR  $rest";
 					print $handle ".$thiszone_name."
 					  if ( substr( $rest, -1, 1 ) ne "." );
@@ -1626,8 +1611,8 @@ sub handle_record {
 					);
 				}
 				else {
-					my ($handle) = $rzone_handle[$rzone];
-					print $handle format_v4_reverse_inzone(\@addr, 32, $rzone_prefix[$rzone], $rzone_prefixlen[$rzone]);
+					my ($handle) = $rzone[$rzone]{handle};
+					print $handle format_v4_reverse_inzone(\@addr, 32, $rzone[$rzone]{prefix}, $rzone[$rzone]{prefixlen});
 					print $handle "  $ttl  $class  PTR  $rest";
 					print $handle ".$thiszone_name."
 					  if ( substr( $rest, -1, 1 ) ne "." );
@@ -1709,31 +1694,31 @@ sub handle_record {
 			if ( $rzone >= $rzone6_count ) {
 				&error("$addr/$prefixlen is not a subnet of a known network.");
 			} elsif ($cidr_extension && $prefixlen < 128-4) { # multi NS
-				my ($handle) = $rzone6_handle[$rzone];
+				my ($handle) = $rzone6[$rzone]{handle};
 				my @subnet_list = list_v6_noncidr \@addr, $prefixlen;
 				for(@subnet_list) {
-					my $subnet = format_v6_reverse_inzone($_->[0], $_->[1], $rzone6_prefix[$rzone], $rzone6_prefixlen[$rzone]);
+					my $subnet = format_v6_reverse_inzone($_->[0], $_->[1], $rzone6[$rzone]{prefix}, $rzone6[$rzone]{prefixlen});
 					print $handle "$subnet  $ttl  $class  NS  $rest\n";
 				}
 			} elsif ($cidr_extension && $prefixlen > 128-4) { # CNAME hack
-				my ($handle) = $rzone6_handle[$rzone];
+				my ($handle) = $rzone6[$rzone]{handle};
 				my @subnet_list = list_v6_noncidr \@addr, $prefixlen;
 				my $supernet = format_v6_reverse_inzone($subnet_list[0]->[0], $subnet_list[0]->[1], [0,0,0,0,0,0,0,0], 0);
-				my $supersubnet = format_v6_reverse_inzone($subnet_list[0]->[0], $subnet_list[0]->[1], $rzone6_prefix[$rzone], $rzone6_prefixlen[$rzone]);
+				my $supersubnet = format_v6_reverse_inzone($subnet_list[0]->[0], $subnet_list[0]->[1], $rzone6[$rzone]{prefix}, $rzone6[$rzone]{prefixlen});
 				print $handle cname_hack $supersubnet, $prefixlen;
 				print $handle "  $ttl  $class  NS  $rest\n";
 				my $chack = cname_hack $supernet, $prefixlen;
 				if(!$done_cidr_hack{$chack}++) {
 					for(@subnet_list) {
-						my $subnet = format_v6_reverse_inzone($_->[0], $_->[1], $rzone6_prefix[$rzone], $rzone6_prefixlen[$rzone]);
+						my $subnet = format_v6_reverse_inzone($_->[0], $_->[1], $rzone6[$rzone]{prefix}, $rzone6[$rzone]{prefixlen});
 						$subnet =~ /^([^.]+)/;
 						my $subnet_name = "$1.$chack";
 						print $handle "$subnet  $ttl  $class  CNAME  $subnet_name.IP6.ARPA.\n";
 					}
 				}
 			} else {
-				my ($handle) = $rzone6_handle[$rzone];
-				my $subnet = format_v6_reverse_inzone(\@addr, $prefixlen, $rzone6_prefix[$rzone], $rzone6_prefixlen[$rzone]);
+				my ($handle) = $rzone6[$rzone]{handle};
+				my $subnet = format_v6_reverse_inzone(\@addr, $prefixlen, $rzone6[$rzone]{prefix}, $rzone6[$rzone]{prefixlen});
 				print $handle "$subnet  $ttl  $class  NS  $rest\n";
 			}
 		}
@@ -1756,31 +1741,31 @@ sub handle_record {
 			if ( $rzone >= $rzone_count ) {
 				&error("$addr/$prefixlen is not a subnet of a known network.");
 			} elsif ($cidr_extension && $prefixlen < 32-8) { # multi NS
-				my ($handle) = $rzone_handle[$rzone];
+				my ($handle) = $rzone[$rzone]{handle};
 				my @subnet_list = list_v4_noncidr \@addr, $prefixlen;
 				for(@subnet_list) {
-					my $subnet = format_v4_reverse_inzone($_->[0], $_->[1], $rzone_prefix[$rzone], $rzone_prefixlen[$rzone]);
+					my $subnet = format_v4_reverse_inzone($_->[0], $_->[1], $rzone[$rzone]{prefix}, $rzone[$rzone]{prefixlen});
 					print $handle "$subnet  $ttl  $class  NS  $rest\n";
 				}
 			} elsif ($cidr_extension && $prefixlen > 32-8) { # CNAME hack
-				my ($handle) = $rzone_handle[$rzone];
+				my ($handle) = $rzone[$rzone]{handle};
 				my @subnet_list = list_v4_noncidr \@addr, $prefixlen;
 				my $supernet = format_v4_reverse_inzone($subnet_list[0]->[0], $subnet_list[0]->[1], [0,0,0,0,0,0,0,0], 0);
-				my $supersubnet = format_v4_reverse_inzone($subnet_list[0]->[0], $subnet_list[0]->[1], $rzone_prefix[$rzone], $rzone_prefixlen[$rzone]);
+				my $supersubnet = format_v4_reverse_inzone($subnet_list[0]->[0], $subnet_list[0]->[1], $rzone[$rzone]{prefix}, $rzone[$rzone]{prefixlen});
 				print $handle cname_hack $supersubnet, $prefixlen;
 				print $handle "  $ttl  $class  NS  $rest\n";
 				my $chack = cname_hack $supernet, $prefixlen;
 				if(!$done_cidr_hack{$chack}++) {
 					for(@subnet_list) {
-						my $subnet = format_v4_reverse_inzone($_->[0], $_->[1], $rzone_prefix[$rzone], $rzone_prefixlen[$rzone]);
+						my $subnet = format_v4_reverse_inzone($_->[0], $_->[1], $rzone[$rzone]{prefix}, $rzone[$rzone]{prefixlen});
 						$subnet =~ /^([^.]+)/;
 						my $subnet_name = "$1.$chack";
 						print $handle "$subnet  $ttl  $class  CNAME  $subnet_name.IN-ADDR.ARPA.\n";
 					}
 				}
 			} else {
-				my ($handle) = $rzone_handle[$rzone];
-				my $subnet = format_v4_reverse_inzone(\@addr, $prefixlen, $rzone_prefix[$rzone], $rzone_prefixlen[$rzone]);
+				my ($handle) = $rzone[$rzone]{handle};
+				my $subnet = format_v4_reverse_inzone(\@addr, $prefixlen, $rzone[$rzone]{prefix}, $rzone[$rzone]{prefixlen});
 				print $handle "$subnet  $ttl  $class  NS  $rest\n";
 			}
 		}
@@ -1963,13 +1948,13 @@ sub generate_zones {
 	}
 
 	for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
-		open( $rzone_handle[$i], ">$rzone_file[$i].new" )
-		  || &give_up("unable to open $rzone_file[$i].new");
+		open( $rzone[$i]{handle}, ">$rzone[$i]{file}.new" )
+		  || &give_up("unable to open $rzone[$i]{file}.new");
 	}
 
 	for ( $i = 0 ; $i < $rzone6_count ; $i++ ) {
-		open( $rzone6_handle[$i], ">$rzone6_file[$i].new" )
-		  || &give_up("unable to open $rzone6_file[$i].new");
+		open( $rzone6[$i]{handle}, ">$rzone6[$i]{file}.new" )
+		  || &give_up("unable to open $rzone6[$i]{file}.new");
 	}
 
 	# Copy the SOA record into all the output files
@@ -2033,8 +2018,8 @@ sub generate_zones {
 					my @addr   = parse_v6 $1;
 					{
 						for ( $i = 0 ; $i < $rzone6_count ; $i++ ) {
-							if ( $prefixlen == $rzone6_prefixlen[$i] && match_prefix_v6 \@addr, $rzone6_prefix[$i], 128 ) {
-								my ($handle) = $rzone6_handle[$i];
+							if ( $prefixlen == $rzone6[$i]{prefixlen} && match_prefix_v6 \@addr, $rzone6[$i]{prefix}, 128 ) {
+								my ($handle) = $rzone6[$i]{handle};
 								print $handle "  $ttl  $class  NS  $ns\n";
 								last;
 							}
@@ -2053,8 +2038,8 @@ sub generate_zones {
 					my @addr   = parse_v4 "$1.$2.$3.$4";
 					{
 						for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
-							if ( $prefixlen == $rzone_prefixlen[$i] && match_prefix_v4 \@addr, $rzone_prefix[$i], 32 ) {
-								my ($handle) = $rzone_handle[$i];
+							if ( $prefixlen == $rzone[$i]{prefixlen} && match_prefix_v4 \@addr, $rzone[$i]{prefix}, 32 ) {
+								my ($handle) = $rzone[$i]{handle};
 								print $handle "  $ttl  $class  NS  $ns\n";
 								last;
 							}
@@ -2090,8 +2075,8 @@ sub generate_zones {
 
 	close SOURCE;
 	for ( $i = 0 ; $i < $zone_count ; $i++ )   { close( $zone_handle[$i] ); }
-	for ( $i = 0 ; $i < $rzone_count ; $i++ )  { close( $rzone_handle[$i] ); }
-	for ( $i = 0 ; $i < $rzone6_count ; $i++ ) { close( $rzone6_handle[$i] ); }
+	for ( $i = 0 ; $i < $rzone_count ; $i++ )  { close( $rzone[$i]{handle} ); }
+	for ( $i = 0 ; $i < $rzone6_count ; $i++ ) { close( $rzone6[$i]{handle} ); }
 }
 
 ##################################################
@@ -2137,10 +2122,10 @@ sub compare_lengths {
 		&check_length("$zone_file[$i]");
 	}
 	for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
-		&check_length("$rzone_file[$i]");
+		&check_length("$rzone[$i]{file}");
 	}
 	for ( $i = 0 ; $i < $rzone6_count ; $i++ ) {
-		&check_length("$rzone6_file[$i]");
+		&check_length("$rzone6[$i]{file}");
 	}
 }
 
@@ -2164,20 +2149,20 @@ sub rename_zones {
 			unlink("$zone_file[$i]$xt");
 		}
 		for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
-			print("\t$rzone_file[$i] ($rzone_name[$i])\n") if $chatty;
+			print("\t$rzone[$i]{file} ($rzone[$i]{name})\n") if $chatty;
 			my $dummy =
-			  `$postprocess_command < $rzone_file[$i]$xt > $rzone_file[$i]$xt2`;
-			&give_up("postprocessing failed with $rzone_file[$i]")
+			  `$postprocess_command < $rzone[$i]{file}$xt > $rzone[$i]{file}$xt2`;
+			&give_up("postprocessing failed with $rzone[$i]{file}")
 			  if ( $? >> 8 );
-			unlink("$rzone_file[$i]$xt");
+			unlink("$rzone[$i]{file}$xt");
 		}
 		for ( $i = 0 ; $i < $rzone6_count ; $i++ ) {
-			print("\t$rzone6_file[$i] ($rzone6_name[$i])\n") if $chatty;
+			print("\t$rzone6[$i]{file} ($rzone6[$i]{name})\n") if $chatty;
 			my $dummy =
-			  `$postprocess_command < $rzone6_file[$i]$xt > $rzone6_file[$i]$xt2`;
-			&give_up("postprocessing failed with $rzone6_file[$i]")
+			  `$postprocess_command < $rzone6[$i]{file}$xt > $rzone6[$i]{file}$xt2`;
+			&give_up("postprocessing failed with $rzone6[$i]{file}")
 			  if ( $? >> 8 );
-			unlink("$rzone6_file[$i]$xt");
+			unlink("$rzone6[$i]{file}$xt");
 		}
 		$xt = $xt2;
 	}
@@ -2187,10 +2172,10 @@ sub rename_zones {
 		rename( "$zone_file[$i]$xt", "$zone_file[$i]" );
 	}
 	for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
-		rename( "$rzone_file[$i]$xt", "$rzone_file[$i]" );
+		rename( "$rzone[$i]{file}$xt", "$rzone[$i]{file}" );
 	}
 	for ( $i = 0 ; $i < $rzone6_count ; $i++ ) {
-		rename( "$rzone6_file[$i]$xt", "$rzone6_file[$i]" );
+		rename( "$rzone6[$i]{file}$xt", "$rzone6[$i]{file}" );
 	}
 
 }
@@ -2209,12 +2194,12 @@ sub remove_temps {
 		unlink "$zone_file[$i].new2";
 	}
 	for ( $i = 0 ; $i < $rzone_count ; $i++ ) {
-		unlink "$rzone_file[$i].new";
-		unlink "$rzone_file[$i].new2";
+		unlink "$rzone[$i]{file}.new";
+		unlink "$rzone[$i]{file}.new2";
 	}
 	for ( $i = 0 ; $i < $rzone6_count ; $i++ ) {
-		unlink "$rzone6_file[$i].new";
-		unlink "$rzone6_file[$i].new2";
+		unlink "$rzone6[$i]{file}.new";
+		unlink "$rzone6[$i]{file}.new2";
 	}
 }
 
