@@ -967,7 +967,7 @@ sub verify {
 	if ( scalar @zone > 0 ) {
 		for ( my $i = 0 ; $i < scalar @zone ; $i++ ) {
 			print " " x 22 if $i != 0;
-			print "$zone[$i]{file}\n";
+			print "$zone[$i]{file} ($zone[$i]{name})\n";
 		}
 	}
 	else { print "<none>\n"; }
@@ -976,7 +976,7 @@ sub verify {
 	if ( scalar @rzone > 0 ) {
 		for ( my $i = 0 ; $i < scalar @rzone ; $i++ ) {
 			print " " x 22 if $i != 0;
-			print "$rzone[$i]{file}\n";
+			print "$rzone[$i]{file} ($rzone[$i]{name})\n";
 		}
 	}
 	else { print "<none>\n"; }
@@ -985,11 +985,27 @@ sub verify {
 
 	if ( scalar @rzone6 > 0 ) {
 		for ( my $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
-			print " " x 22 if $i != 0;
-			print "$rzone6[$i]{file}\n";
+			print " " x 25 if $i != 0;
+			print "$rzone6[$i]{file} ($rzone6[$i]{name})\n";
 		}
 	}
 	else { print "<none>\n"; }
+}
+
+sub named_conf {
+	print "\nnamed.conf example:\n";
+
+	for ( my $i = 0 ; $i < scalar @zone ; $i++ ) {
+		print "zone \"$zone[$i]{name}\" {\n\ttype master;\n\tfile \"$zone[$i]{file}\";\n};\n";
+	}
+
+	for ( my $i = 0 ; $i < scalar @rzone ; $i++ ) {
+		print "zone \"$rzone[$i]{name}\" {\n\ttype master;\n\tfile \"$rzone[$i]{file}\";\n};\n";
+	}
+
+	for ( my $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
+		print "zone \"$rzone6[$i]{name}\" {\n\ttype master;\n\tfile \"$rzone6[$i]{file}\";\n};\n";
+	}
 }
 
 ##################################################
@@ -2155,7 +2171,7 @@ sub rename_zones {
 		print "postprocessing the new zone files...\n"
 		  if $chatty;
 		for ( $i = 0 ; $i < scalar @zone ; $i++ ) {
-			print("\t$zone[$i]{file} ($zone[$i]{name})\n") if $chatty;
+			print("\t$zone[$i]{file}\n") if $chatty;
 			my $dummy =
 			  `$postprocess_command < $zone[$i]{file}$xt > $zone[$i]{file}$xt2`;
 			&give_up("postprocessing failed with $zone[$i]{file}")
@@ -2163,7 +2179,7 @@ sub rename_zones {
 			unlink("$zone[$i]{file}$xt");
 		}
 		for ( $i = 0 ; $i < scalar @rzone ; $i++ ) {
-			print("\t$rzone[$i]{file} ($rzone[$i]{name})\n") if $chatty;
+			print("\t$rzone[$i]{file}\n") if $chatty;
 			my $dummy =
 			  `$postprocess_command < $rzone[$i]{file}$xt > $rzone[$i]{file}$xt2`;
 			&give_up("postprocessing failed with $rzone[$i]{file}")
@@ -2171,7 +2187,7 @@ sub rename_zones {
 			unlink("$rzone[$i]{file}$xt");
 		}
 		for ( $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
-			print("\t$rzone6[$i]{file} ($rzone6[$i]{name})\n") if $chatty;
+			print("\t$rzone6[$i]{file}\n") if $chatty;
 			my $dummy =
 			  `$postprocess_command < $rzone6[$i]{file}$xt > $rzone6[$i]{file}$xt2`;
 			&give_up("postprocessing failed with $rzone6[$i]{file}")
@@ -2234,6 +2250,7 @@ $soa_count    = 6;
 
 &unpick_args();
 &verify();
+&named_conf() if $chatty;
 &update_serial();
 &generate_zones();
 print "\n" if $errors > 0;
