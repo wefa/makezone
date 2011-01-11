@@ -572,8 +572,8 @@ sub print_forward {
 #   IPv4+6 support                               #
 ##################################################
 
-my $ipv4_params = { words => 4, bits =>  8, revbits => 8, rzone => \@rzone  };
-my $ipv6_params = { words => 8, bits => 16, revbits => 4, rzone => \@rzone6 };
+my $ipv4_params = { words => 4, bits =>  8, revbits => 8, suffix => ".IN-ADDR.ARPA", rzone => \@rzone  };
+my $ipv6_params = { words => 8, bits => 16, revbits => 4, suffix => ".IP6.ARPA",     rzone => \@rzone6 };
 
 sub match_prefix_ip {
 	my ( $params, $addr, $net, $prefixlen ) = @_;
@@ -894,7 +894,7 @@ sub unpick_args_addzones {
 		$zone->{file} = $file;
 		my $subnet = format_ip_reverse_inzone($params, $prefix, $params->{bits} * $params->{words}, [(0) x $params->{words}], 0);
 		my $subnet_name = cname_hack $subnet, $prefixlen;
-		$zone->{name} = $subnet_name . ".IP6.ARPA";
+		$zone->{name} = $subnet_name . $params->{suffix};
 	} else {
 		# detect a "multi-NS delegation" and use multiple zone files then
 		my @l = list_ip_noncidr $params, $prefix, $prefixlen;
@@ -905,7 +905,7 @@ sub unpick_args_addzones {
 			$zone->{prefixlen} = $_->[1];
 			$subnet =~ /^([^.]+)/;
 			$zone->{file} = $file . (@l == 1 ? "" : ".$1");
-			$zone->{name} = $subnet . ".IP6.ARPA";
+			$zone->{name} = $subnet . $params->{suffix};
 		}
 	}
 }
