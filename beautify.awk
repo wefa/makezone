@@ -38,7 +38,7 @@
 		class = "\t" $(feld);
 		feld++ ;
 		};
-	   if (match($(feld), /^(A|CNAME|MX|PTR|NS|SRV)/)){
+	   if (match($(feld), /^(A|AAAA|CNAME|MX|PTR|NS|SRV)$/)){
 		# print formatted
 		printf("%s%s%s\t%s\t", name, ttl, class, $(feld));
 		for (j=feld+1;j<=NF;j++) {
