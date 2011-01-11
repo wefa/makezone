@@ -5,7 +5,7 @@ FTPPATH=/dat/sicher/conf
 SAVESCRIPT=./tftpout.sh
 
 SCRIPTS=Makefile makezone beautify.awk $(SAVESCRIPT) make-localhost \
-	makehosts.awk sorthosts.awk reload
+	makehosts.awk sorthosts.pl reload
 CONFS=named.conf named.root PROTO.localhost.rev
 
 SRCS=example.src
@@ -47,9 +47,9 @@ db.example: example.src $(SCRIPTS)
 		-r 2001:db8:1234:7778:1111:2222:3333:4444/126 2001.0db8.1234.7778.1111.2222.3333.4444..126
 
 
-hosts:  $(SRCS) makehosts.awk sorthosts.awk Makefile
+hosts:  $(SRCS) makehosts.awk sorthosts.pl Makefile
 	$(AWK) -f makehosts.awk $(SRCS) \
-	| $(AWK) -f sorthosts.awk > hosts
+	| ./sorthosts.pl > hosts
 	cp hosts $(FTPPATH)
 	chmod go+r $(FTPPATH)/hosts
 	cp hosts /etc/hosts-full

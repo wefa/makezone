@@ -677,6 +677,9 @@ sub parse_v4 {
 	my ($addr) = @_;
 	my (@addr);
 
+	&error("invalid ipv4 address: $addr")
+		if $addr =~ /[^0-9.]/;
+
 	@addr = split /\./, $addr;
 	push @addr, 0
 		while @addr < 4;
@@ -754,6 +757,10 @@ sub find_zone_v4 {
 sub parse_v6 {
 	my ($addr) = @_;
 	my (@addr);
+
+	&error("invalid ipv6 address: $addr")
+		if $addr =~ /[^0-9a-fA-F:]/;
+
 	if ( $addr =~ /([0-9a-fA-F:]*)::([0-9a-fA-F:]*)/ ) {
 		my ($addr_pre)  = $1;
 		my ($addr_post) = $2;
