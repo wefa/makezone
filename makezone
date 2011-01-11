@@ -1587,30 +1587,29 @@ sub handle_record {
 
 		$names{"$fqdn"} = $nline if !$nn || $nn == $used_other;
 
-		if ( $name =~ /:/ )    # IPv6
-		{
-			my @addr = parse_v6 $name;
-			my ($addr_normalized) = format_v6_forward @addr;
+		sub do_ptr {
+			my ($params, $name, $rest) = @_;
+			my @addr = parse_ip $params, $name;
+			my ($addr_normalized) = format_ip_forward $params, @addr;
 
 			&check_fqn( $rest, "PTR" );
 
-			$rzone = &find_zone_v6( 0, @addr );
+			$rzone = &find_zone_ip( $params, 0, @addr );
 
-			if ( $rzone >= scalar @rzone6 ) {
+			if ( $rzone >= scalar @{$params->{rzone}} ) {
 				&error("wrong PTR: $net is not part of a known network.");
 			}
 			else {
 				my $thisaddress = $addr_normalized;
 				if ( $addresses{"$thisaddress"} && !$multiple ) {
-					&error(
-"duplicate IP address $thisaddress specified for a PTR record.\n"
+					&error(     "duplicate IP address $thisaddress specified for a PTR record.\n"
 						  . "** Use the >M flag if multiple PTR records are required.\n"
 						  . "** The first occurrence was in line $addresses{$thisaddress}."
 					);
 				}
 				else {
-					my ($handle) = $rzone6[$rzone]{handle};
-					print $handle format_v6_reverse_inzone(\@addr, 128, $rzone6[$rzone]{prefix}, $rzone6[$rzone]{prefixlen});
+					my ($handle) = $params->{rzone}[$rzone]{handle};
+					print $handle format_ip_reverse_inzone($params, \@addr, $params->{words} * $params->{bits}, $params->{rzone}[$rzone]{prefix}, $params->{rzone}[$rzone]{prefixlen});
 					print $handle "  $ttl  $class  PTR  $rest";
 					print $handle ".$thiszone_name."
 					  if ( substr( $rest, -1, 1 ) ne "." );
@@ -1620,37 +1619,14 @@ sub handle_record {
 				}
 			}
 		}
-		else {
-			my @addr = parse_v4 $name;
-			my ($addr_normalized) = format_v4_forward @addr;
 
-			&check_fqn( $rest, "PTR" );
-
-			$rzone = &find_zone_v4( 0, @addr );
-
-			if ( $rzone >= scalar @rzone ) {
-				&error("wrong PTR: $net is not part of a known network.");
-			}
-			else {
-				my $thisaddress = $addr_normalized;
-				if ( $addresses{"$thisaddress"} && !$multiple ) {
-					&error(
-"duplicate IP address $thisaddress specified for a PTR record.\n"
-						  . "** Use the >M flag if multiple PTR records are required.\n"
-						  . "** The first occurrence was in line $addresses{$thisaddress}."
-					);
-				}
-				else {
-					my ($handle) = $rzone[$rzone]{handle};
-					print $handle format_v4_reverse_inzone(\@addr, 32, $rzone[$rzone]{prefix}, $rzone[$rzone]{prefixlen});
-					print $handle "  $ttl  $class  PTR  $rest";
-					print $handle ".$thiszone_name."
-					  if ( substr( $rest, -1, 1 ) ne "." );
-					print $handle "\n";
-					$addresses{"$thisaddress"} = $nline
-					  if !$addresses{"$thisaddress"};
-				}
-			}
+		if ( $name =~ /:/ )    # IPv6
+		{
+			do_ptr $ipv6_params, $name, $rest;
+		}
+		else
+		{
+			do_ptr $ipv4_params, $name, $rest;
 		}
 
 		return;
