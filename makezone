@@ -3,14 +3,7 @@
 use strict;
 use warnings;
 
-our $version_number = "0.22h [22-JUN-10]";
-
-# TODO
-# multi forward zones
-
-# This script was developed using Perl 4.036. It has now been converted
-# to Perl 5.002. If you want to run it under Perl 4, you need to delete
-# the line that contains "use integer" below.
+our $version_number = "0.22i [11-JAN-11]";
 
 ########################################################################
 #                           MAKEZONES                                  #
@@ -31,6 +24,9 @@ our $version_number = "0.22h [22-JUN-10]";
 #
 # This version has been modified for CIDR network support
 # by Christoph Weber-Fahr <wefa@gmx.de>
+#
+# This version has been modified for IPv6 support
+# by Rudolf Polzer <rpolzer@mucke-novak.de>
 
 ########################################################################
 # CONFIGURATION VARIABLES
@@ -481,6 +477,7 @@ my $all_wildcards = 1;
 #   0.22f CWF Dec-04  Fixed bug with zero-record files
 #   0.22g CWF Apr-08  Added Wildcards of all types
 #   0.22h CWF Jun-10  permitted wildcard consisting of "*" only
+#   0.22i RP  Jan-11  IPv6 support
 #
 
 ##################################################
@@ -2158,7 +2155,7 @@ sub rename_zones {
 		print "postprocessing the new zone files...\n"
 		  if $chatty;
 		for ( $i = 0 ; $i < scalar @zone ; $i++ ) {
-			print("\t$zone[$i]{file}\n") if $chatty;
+			print("\t$zone[$i]{file} ($zone[$i]{name})\n") if $chatty;
 			my $dummy =
 			  `$postprocess_command < $zone[$i]{file}$xt > $zone[$i]{file}$xt2`;
 			&give_up("postprocessing failed with $zone[$i]{file}")
