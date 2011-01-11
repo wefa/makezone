@@ -1643,95 +1643,60 @@ sub handle_record {
 		# If the name starts with a digit, it must be the reversed address of
 		# a devolved sub-zone of a Class A or Class B network.
 
-		if ( $name =~ /(.*:.*)\/(.*)/ ) {
-			my ( $net, $rzone, $r_e );
-			my ( $addr, $prefixlen ) = ( $1, $2 );
-			my ($cidr_extension) = 1;
-			my @addr = parse_v6 $addr;
+		my $do_ns = sub {
+			my ($params, $addr, $prefixlen) = @_;
 
-			if($prefixlen % 4 == 0) {
+			my ( $net, $rzone, $r_e );
+			my ($cidr_extension) = 1;
+			my @addr = parse_ip $params, $addr;
+
+			if($prefixlen % $params->{revbits} == 0) {
 				$cidr_extension = 0;
 			}
 
-			$rzone = &find_zone_v6( 1, @addr );
+			$rzone = &find_zone_ip( $params, 1, @addr );
 
-			if ( $rzone >= scalar @rzone6 ) {
+			if ( $rzone >= scalar @{$params->{rzone}} ) {
 				&error("$addr/$prefixlen is not a subnet of a known network.");
-			} elsif ($cidr_extension && $prefixlen < 128-4) { # multi NS
-				my ($handle) = $rzone6[$rzone]{handle};
-				my @subnet_list = list_v6_noncidr \@addr, $prefixlen;
+			} elsif ($cidr_extension && $prefixlen < $params->{words} * $params->{bits} - $params->{revbits}) { # multi NS
+				my ($handle) = $params->{rzone}[$rzone]{handle};
+				my @subnet_list = list_ip_noncidr $params, \@addr, $prefixlen;
 				for(@subnet_list) {
-					my $subnet = format_v6_reverse_inzone($_->[0], $_->[1], $rzone6[$rzone]{prefix}, $rzone6[$rzone]{prefixlen});
+					my $subnet = format_ip_reverse_inzone($params, $_->[0], $_->[1], $params->{rzone}[$rzone]{prefix}, $params->{rzone}[$rzone]{prefixlen});
 					print $handle "$subnet  $ttl  $class  NS  $rest\n";
 				}
-			} elsif ($cidr_extension && $prefixlen > 128-4) { # CNAME hack
-				my ($handle) = $rzone6[$rzone]{handle};
-				my @subnet_list = list_v6_noncidr \@addr, $prefixlen;
-				my $supernet = format_v6_reverse_inzone($subnet_list[0]->[0], $subnet_list[0]->[1], [0,0,0,0,0,0,0,0], 0);
-				my $supersubnet = format_v6_reverse_inzone($subnet_list[0]->[0], $subnet_list[0]->[1], $rzone6[$rzone]{prefix}, $rzone6[$rzone]{prefixlen});
+			} elsif ($cidr_extension) { # CNAME hack
+				my ($handle) = $params->{rzone}[$rzone]{handle};
+				my @subnet_list = list_ip_noncidr $params, \@addr, $prefixlen;
+				my $supernet = format_ip_reverse_inzone($params, $subnet_list[0]->[0], $subnet_list[0]->[1], [(0) x $params->{words}], 0);
+				my $supersubnet = format_ip_reverse_inzone($params, $subnet_list[0]->[0], $subnet_list[0]->[1], $params->{rzone}[$rzone]{prefix}, $params->{rzone}[$rzone]{prefixlen});
 				print $handle cname_hack $supersubnet, $prefixlen;
 				print $handle "  $ttl  $class  NS  $rest\n";
 				my $chack = cname_hack $supernet, $prefixlen;
 				if(!$done_cidr_hack{$chack}++) {
 					for(@subnet_list) {
-						my $subnet = format_v6_reverse_inzone($_->[0], $_->[1], $rzone6[$rzone]{prefix}, $rzone6[$rzone]{prefixlen});
+						my $subnet = format_ip_reverse_inzone($params, $_->[0], $_->[1], $params->{rzone}[$rzone]{prefix}, $params->{rzone}[$rzone]{prefixlen});
 						$subnet =~ /^([^.]+)/;
 						my $subnet_name = "$1.$chack";
-						print $handle "$subnet  $ttl  $class  CNAME  $subnet_name.IP6.ARPA.\n";
+						print $handle "$subnet  $ttl  $class  CNAME  $subnet_name$params->{suffix}.\n";
 					}
 				}
 			} else {
-				my ($handle) = $rzone6[$rzone]{handle};
-				my $subnet = format_v6_reverse_inzone(\@addr, $prefixlen, $rzone6[$rzone]{prefix}, $rzone6[$rzone]{prefixlen});
+				my ($handle) = $params->{rzone}[$rzone]{handle};
+				my $subnet = format_ip_reverse_inzone($params, \@addr, $prefixlen, $params->{rzone}[$rzone]{prefix}, $params->{rzone}[$rzone]{prefixlen});
 				print $handle "$subnet  $ttl  $class  NS  $rest\n";
 			}
+		};
+
+		if ( $name =~ /(.*:.*)\/(.*)/ ) {
+			$do_ns->($ipv6_params, $1, $2);
 		}
 		elsif($name =~ /^(\d+)(?:\.(\d+)(?:\.(\d+)(?:\.(\d+))?)?)?(?:\/(\d+))?$|^(\d+)\/(\d+)\.(\d+)\.(\d+)\.(\d+)$/) {
 			my ($a, $b, $c, $d, $prefixlen) =
 				$1
 					? ($1, $2||0, $3||0, $4||0, $5 || (defined $4 ? 32 : defined $3 ? 24 : defined $2 ? 16 : 8))
 					: ($10, $9, $8, $6, $7);
-			my ( $net, $rzone, $r_e );
-			my ($cidr_extension) = 1;
-			my $addr = "$a.$b.$c.$d";
-			my @addr = parse_v4 $addr;
-
-			if($prefixlen % 8 == 0) {
-				$cidr_extension = 0;
-			}
-
-			$rzone = &find_zone_v4( 1, @addr );
-
-			if ( $rzone >= scalar @rzone ) {
-				&error("$addr/$prefixlen is not a subnet of a known network.");
-			} elsif ($cidr_extension && $prefixlen < 32-8) { # multi NS
-				my ($handle) = $rzone[$rzone]{handle};
-				my @subnet_list = list_v4_noncidr \@addr, $prefixlen;
-				for(@subnet_list) {
-					my $subnet = format_v4_reverse_inzone($_->[0], $_->[1], $rzone[$rzone]{prefix}, $rzone[$rzone]{prefixlen});
-					print $handle "$subnet  $ttl  $class  NS  $rest\n";
-				}
-			} elsif ($cidr_extension && $prefixlen > 32-8) { # CNAME hack
-				my ($handle) = $rzone[$rzone]{handle};
-				my @subnet_list = list_v4_noncidr \@addr, $prefixlen;
-				my $supernet = format_v4_reverse_inzone($subnet_list[0]->[0], $subnet_list[0]->[1], [0,0,0,0,0,0,0,0], 0);
-				my $supersubnet = format_v4_reverse_inzone($subnet_list[0]->[0], $subnet_list[0]->[1], $rzone[$rzone]{prefix}, $rzone[$rzone]{prefixlen});
-				print $handle cname_hack $supersubnet, $prefixlen;
-				print $handle "  $ttl  $class  NS  $rest\n";
-				my $chack = cname_hack $supernet, $prefixlen;
-				if(!$done_cidr_hack{$chack}++) {
-					for(@subnet_list) {
-						my $subnet = format_v4_reverse_inzone($_->[0], $_->[1], $rzone[$rzone]{prefix}, $rzone[$rzone]{prefixlen});
-						$subnet =~ /^([^.]+)/;
-						my $subnet_name = "$1.$chack";
-						print $handle "$subnet  $ttl  $class  CNAME  $subnet_name.IN-ADDR.ARPA.\n";
-					}
-				}
-			} else {
-				my ($handle) = $rzone[$rzone]{handle};
-				my $subnet = format_v4_reverse_inzone(\@addr, $prefixlen, $rzone[$rzone]{prefix}, $rzone[$rzone]{prefixlen});
-				print $handle "$subnet  $ttl  $class  NS  $rest\n";
-			}
+			$do_ns->($ipv4_params, "$a.$b.$c.$d", $prefixlen);
 		}
 
 		# Otherwise this is a devolution from the main forwards zone
