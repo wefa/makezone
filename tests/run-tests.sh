@@ -20,8 +20,7 @@ for TT in */; do
 		if diff -I ";serial" -I "^#" -Nru "$T/good" "$T/out" 2>&1 >>"$T/log"; then
 			echo "GOOD"
 		else
-			echo "BAD"
-			cat "$T/log"
+			echo "BAD (see tests/$T/log)"
 			ret=$(($ret+1))
 		fi
 	fi
