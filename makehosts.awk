@@ -35,6 +35,12 @@ $2 == "A" { cname = tolower(sprintf ("%s.%s", $1, domainstring));
 	    append_alias(number, $1, 0);
 	    append_alias(number, cname, 1);
           }
+$2 == "AAAA" { cname = tolower(sprintf ("%s.%s", $1, domainstring));
+	    number = $3;
+	    LINK [cname] = number;
+	    append_alias(number, $1, 0);
+	    append_alias(number, cname, 1);
+          }
 $2 == "CNAME"  { 
 	    cname = tolower($3); sub (/\.$/,"",cname); i= cname;
 	    alias = tolower(sprintf ("%s.%s", $1, domainstring));
@@ -64,7 +70,7 @@ END	  {
 		for (j in TMP2) 
 		{ #print "#" j "#";
 		  append_alias(i, j, 0); }
-                printf ("%s\t\t%s %s\n", i, CNAME[i], ALIAS[i]);
+                printf ("%-39s\t%s %s\n", i, CNAME[i], ALIAS[i]);
               }
 	    }
           }

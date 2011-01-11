@@ -1,0 +1,9 @@
+#
+# /etc/hosts generated automatically by makehosts.awk
+# from named/makezone source file /home/rpolzer/work/makezone/tests/standard-functionality/src.tmp
+# at Tue Jan 11 12:09:28 CET 2011
+# 
+192.0.2.1                              	router.lab.example.org router
+192.0.2.2                              	router-failover1.lab.example.org router-failover1
+192.0.2.3                              	router-failover2.lab.example.org router-failover2
+192.0.2.4                              	rr-comment.lab.example.org rr-comment

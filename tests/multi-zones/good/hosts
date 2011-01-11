@@ -1,0 +1,11 @@
+#
+# /etc/hosts generated automatically by makehosts.awk
+# from named/makezone source file /home/rpolzer/work/makezone/tests/multi-zones/src.tmp
+# at Tue Jan 11 12:09:28 CET 2011
+# 
+192.0.2.1                              	host1.lab.example.org host1
+192.0.2.2                              	host1.lab2.example.org..lab.example.org host1.lab2.example.org.
+192.0.2.3                              	host2.lab1.example.org..lab.example.org host2.lab1.example.org.
+192.0.2.4                              	host2.lab.example.org host2
+192.0.2.5                              	host3.lab.example.org host3
+192.0.2.6                              	host3.lab.example.org host3

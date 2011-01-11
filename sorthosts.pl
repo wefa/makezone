@@ -4,14 +4,17 @@
 #
 # Author:	Rudolf Polzer
 #
-# 1.0	initial version				sometime in June 1996
+# 1.0	initial version				January 2010
 #
+
+use strict;
+use warnings;
 
 sub parse_v4 {
 	my ($addr) = @_;
 	my (@addr);
 
-	return undef
+	return ()
 		if $addr =~ /[^0-9.]/;
 
 	@addr = split /\./, $addr;
@@ -30,7 +33,7 @@ sub parse_v6 {
 	my ($addr) = @_;
 	my (@addr);
 
-	return undef
+	return ()
 		if $addr =~ /[^0-9a-fA-F:]/;
 
 	if ( $addr =~ /([0-9a-fA-F:]*)::([0-9a-fA-F:]*)/ ) {
@@ -57,12 +60,12 @@ my @data = ();
 while(<>)
 {
 	chomp;
-	my $addr = ($_ =~ /^(\S*)/);
-	if(my @addr = parse_v4 $addr)
+	my $addr = [$_ =~ /^(\S*)/]->[0];
+	if((my @addr = parse_v4 $addr))
 	{
 		push @data, [[4, @addr], $_];
 	}
-	elsif(my @addr = parse_v6 $addr)
+	elsif((@addr = parse_v6 $addr))
 	{
 		push @data, [[6, @addr], $_];
 	}
@@ -75,8 +78,8 @@ sub acmp($$);
 sub acmp($$)
 {
 	my ($a, $b) = @_;
-	my ($afirst, $arest) = $a->[0], @{$a}[1..-1];
-	my ($bfirst, $brest) = $b->[0], @{$b}[1..-1];
+	my ($afirst, $arest) = ($a->[0], [@{$a}[1..@$a-1]]);
+	my ($bfirst, $brest) = ($b->[0], [@{$b}[1..@$b-1]]);
 	return 0
 		if not defined $afirst and not defined $bfirst;
 	my $r = ((defined $afirst) <=> (defined $bfirst));
