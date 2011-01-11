@@ -1,0 +1,27 @@
+
+Makezones 0.22i [11-JAN-11]
+Generating DNS zone files from src.tmp.
+  Forward zone file:  out/db.org.example.lab (lab.example.org)
+  Reverse zone file:  out/db.192.0.2 (2.0.192.IN-ADDR.ARPA)
+  v6 Reverse zone files: <none>
+
+named.conf example:
+zone "lab.example.org" {
+	type master;
+	file "out/db.org.example.lab";
+};
+zone "2.0.192.IN-ADDR.ARPA" {
+	type master;
+	file "out/db.192.0.2";
+};
+
+Updating the serial number in the source file...
+Generating the zone data...
+
+** Makezones: unexpected duplicate name.
+** The first occurrence was in line 13.
+   At line 14 of src.tmp:
+   router			IN	A	192.0.2.2
+
+
+** Makezones failed.
