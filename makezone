@@ -572,8 +572,8 @@ sub print_forward {
 #   IPv4+6 support                               #
 ##################################################
 
-my $ipv4_params = { words => 4, bits =>  8, revbits => 8, suffix => ".IN-ADDR.ARPA", rzone => \@rzone  };
-my $ipv6_params = { words => 8, bits => 16, revbits => 4, suffix => ".IP6.ARPA",     rzone => \@rzone6 };
+my $ipv4_params = { words => 4, bits =>  8, revbits => 8, recordtype => "A",    suffix => ".IN-ADDR.ARPA", rzone => \@rzone  };
+my $ipv6_params = { words => 8, bits => 16, revbits => 4, recordtype => "AAAA", suffix => ".IP6.ARPA",     rzone => \@rzone6 };
 
 sub match_prefix_ip {
 	my ( $params, $addr, $net, $prefixlen ) = @_;
@@ -675,7 +675,7 @@ sub parse_v4 {
 	my (@addr);
 
 	&error("invalid ipv4 address: $addr")
-		if $addr =~ /[^0-9.]/;
+		if $addr =~ /^$|[^0-9.]/;
 
 	@addr = split /\./, $addr;
 	push @addr, 0
@@ -756,7 +756,7 @@ sub parse_v6 {
 	my (@addr);
 
 	&error("invalid ipv6 address: $addr")
-		if $addr =~ /[^0-9a-fA-F:]/;
+		if $addr =~ /^$|[^0-9a-fA-F:]/;
 
 	if ( $addr =~ /([0-9a-fA-F:]*)::([0-9a-fA-F:]*)/ ) {
 		my ($addr_pre)  = $1;
@@ -1415,31 +1415,46 @@ sub handle_record {
 	# Type A - host address; the address must be in one of the networks
 	# being processed, unless it was flagged as an external network.
 
-	if ( $type eq "A" ) {
+	my $do_a = sub {
+		my ($params) = @_;
 		my ($rzone);
-		my ($nn)              = $names{"$fqdn"} || 0;
-		my (@addr)            = parse_v4($rest);
-		my ($addr_normalized) = format_v4_forward @addr;
+		my (@addr)            = parse_ip($params, $rest);
+		my ($addr_normalized) = format_ip_forward $params, @addr;
 
-		if ( $duplicate_name_check && $printname !~ /^\s*$/ && $nn > 0 ) {
-			&error( "unexpected duplicate name.\n"
-				  . "** The first occurrence was in line $nn." );
+		if($params eq $ipv4_params) {
+			my ($nn)              = $names{"$fqdn"} || 0;
+			if ( $duplicate_name_check && $printname !~ /^\s*$/ && $nn > 0 ) {
+				&error( "unexpected duplicate name.\n"
+					  . "** The first occurrence was in line $nn." );
+			}
+
+			$names{"$fqdn"} = $nline if !$nn || $nn == $used_other;
+
+			# The loopback address is always treated as external
+			$external_net = $forwards_only = 1
+			  if ( $addr_normalized eq "127.0.0.1" );
+		} else {
+			my ($nn)              = $names_v6{"$fqdn"} || 0;
+
+			if ( $duplicate_name_check && $printname !~ /^\s*$/ && $nn > 0 ) {
+				&error( "unexpected duplicate name.\n"
+					  . "** The first occurrence was in line $nn." );
+			}
+
+			$names_v6{"$fqdn"} = $nline      if !$nn;
+			$names{"$fqdn"}    = $used_other if !$names{"$fqdn"};
+
+			# The loopback address is always treated as external
+			$external_net = $forwards_only = 1
+			  if $addr_normalized eq "0:0:0:0:0:0:0:1";
 		}
-
-		$names{"$fqdn"} = $nline if !$nn || $nn == $used_other;
-
-
-		# The loopback address is always treated as external
-
-		$external_net = $forwards_only = 1
-		  if ( $addr_normalized eq "127.0.0.1" );
 
 		# Check known network (& find network) unless external
 
 		if ( !$external_net ) {
-			$rzone = &find_zone_v4( 0, @addr );
+			$rzone = &find_zone_ip( $params, 0, @addr );
 
-			if ( $rzone >= scalar @rzone ) {
+			if ( $rzone >= scalar @{$params->{rzone}} ) {
 				&error("IP address is not in a known network (use >E for externals)."
 				);
 				return;
@@ -1448,7 +1463,7 @@ sub handle_record {
 
 		# Output the A record to the forward file, unless reverse-only record.
 
-		print $thiszone_handle "$printname  $ttl  $class  A  $addr_normalized\n"
+		print $thiszone_handle "$printname  $ttl  $class  $params->{recordtype}  $addr_normalized\n"
 			if !$reverse_only;
 
 		# If required, generate a PTR record for the reverse file. Check for
@@ -1466,8 +1481,8 @@ sub handle_record {
 			else {
 
 				# modified to support CIDR-Style networks
-				my ($handle) = $rzone[$rzone]{handle};
-				print $handle format_v4_reverse_inzone(\@addr, 32, $rzone[$rzone]{prefix}, $rzone[$rzone]{prefixlen} & 0xF8);
+				my ($handle) = $params->{rzone}[$rzone]{handle};
+				print $handle format_ip_reverse_inzone($params, \@addr, $params->{words} * $params->{bits}, $params->{rzone}[$rzone]{prefix}, int($params->{rzone}[$rzone]{prefixlen} / $params->{revbits}) * $params->{revbits});
 				print $handle "  $ttl  $class  PTR  $name";
 				print $handle ".$thiszone_name."
 				  if ( substr( $name, -1, 1 ) ne "." );
@@ -1476,72 +1491,15 @@ sub handle_record {
 				  if !$addresses{"$thisaddress"};
 			}
 		}
+	};
 
+	if ( $type eq "A" ) {
+		$do_a->($ipv4_params);
 		return;
 	}
 
 	if ( $type eq "AAAA" ) {
-		my ($rzone);
-		my ($nn)              = $names_v6{"$fqdn"} || 0;
-		my (@addr)            = parse_v6($rest);
-		my ($addr_normalized) = format_v6_forward @addr;
-
-		if ( $duplicate_name_check && $printname !~ /^\s*$/ && $nn > 0 ) {
-			&error( "unexpected duplicate name.\n"
-				  . "** The first occurrence was in line $nn." );
-		}
-
-		$names_v6{"$fqdn"} = $nline      if !$nn;
-		$names{"$fqdn"}    = $used_other if !$names{"$fqdn"};
-
-		# The loopback address is always treated as external
-
-		$external_net = $forwards_only = 1
-		  if $addr_normalized eq "0:0:0:0:0:0:0:1";
-
-		# Check known network (& find network) unless external
-
-		if ( !$external_net ) {
-			$rzone = &find_zone_v6( 0, @addr );
-
-			if ( $rzone >= scalar @rzone6 ) {
-				&error("IP address is not in a known network (use >E for externals)."
-				);
-				return;
-			}
-		}
-
-		# Output the A record to the forward file, unless reverse-only record.
-
-		print $thiszone_handle "$printname  $ttl  $class  AAAA  $addr_normalized\n"
-		  if !$reverse_only;
-
-		# If required, generate a PTR record for the reverse file. Check for
-		# multiples, and complain unless the record is flagged as such.
-
-		if ( !$forwards_only ) {
-			my $thisaddress = $addr_normalized;
-			if ( $addresses{"$thisaddress"} && !$multiple ) {
-				&error(
-"duplicate IP address $thisaddress specified for a PTR record.\n"
-					  . "** Use the >M flag if multiple PTR records are required.\n"
-					  . "** The first occurrence was in line $addresses{$thisaddress}."
-				);
-			}
-			else {
-
-				# modified to support CIDR-Style networks
-				my ($handle) = $rzone6[$rzone]{handle};
-				print $handle format_v6_reverse_inzone(\@addr, 128, $rzone6[$rzone]{prefix}, $rzone6[$rzone]{prefixlen} & 0xFC);
-				print $handle "  $ttl  $class  PTR  $name";
-				print $handle ".$thiszone_name."
-				  if ( substr( $name, -1, 1 ) ne "." );
-				print $handle "\n";
-				$addresses{"$thisaddress"} = $nline
-				  if !$addresses{"$thisaddress"};
-			}
-		}
-
+		$do_a->($ipv6_params);
 		return;
 	}
 
@@ -1587,7 +1545,7 @@ sub handle_record {
 
 		$names{"$fqdn"} = $nline if !$nn || $nn == $used_other;
 
-		sub do_ptr {
+		my $do_ptr = sub {
 			my ($params, $name, $rest) = @_;
 			my @addr = parse_ip $params, $name;
 			my ($addr_normalized) = format_ip_forward $params, @addr;
@@ -1618,15 +1576,15 @@ sub handle_record {
 					  if !$addresses{"$thisaddress"};
 				}
 			}
-		}
+		};
 
 		if ( $name =~ /:/ )    # IPv6
 		{
-			do_ptr $ipv6_params, $name, $rest;
+			$do_ptr->($ipv6_params, $name, $rest);
 		}
 		else
 		{
-			do_ptr $ipv4_params, $name, $rest;
+			$do_ptr->($ipv4_params, $name, $rest);
 		}
 
 		return;

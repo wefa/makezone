@@ -15,7 +15,7 @@ sub parse_v4 {
 	my (@addr);
 
 	return ()
-		if $addr =~ /[^0-9.]/;
+		if $addr =~ /^$|[^0-9.]/;
 
 	@addr = split /\./, $addr;
 	push @addr, 0
@@ -34,7 +34,7 @@ sub parse_v6 {
 	my (@addr);
 
 	return ()
-		if $addr =~ /[^0-9a-fA-F:]/;
+		if $addr =~ /^$|[^0-9a-fA-F:]/;
 
 	if ( $addr =~ /([0-9a-fA-F:]*)::([0-9a-fA-F:]*)/ ) {
 		my ($addr_pre)  = $1;
