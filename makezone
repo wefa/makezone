@@ -1847,6 +1847,14 @@ sub handle_record {
 		return;
 	}
 
+	# other type
+
+	if ( $type =~ /^[A-Z0-9]*$/ ) {
+		warn "Unknown record type $type handled";
+		print $thiszone_handle "$printname  $ttl  $class  $type  $rest\n";
+		return;
+	}
+
 	# Else we have a bad record
 
 	&error("unknown record type $type.");
