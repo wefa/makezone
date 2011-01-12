@@ -298,6 +298,9 @@ my $all_wildcards = 1;
 #     Case (4) is just a mixture of cases (2) and (3), with some records having
 #     the ">M " flag and some the ">F " flag.
 #
+#   . The flag ">N " can be used to skip including an A or PTR record if it has
+#     already been defined.
+# 
 #   . We want to be able to check that all IP addresses are in one of the
 #     networks that we are processing for. However, occasionally a record must
 #     specify an external network (glue records are the prime example). Such
@@ -1163,36 +1166,39 @@ my $lastwaserror;
 my $default_zone = 0;
 
 sub handle_record {
-	my $forwards_only = my $reverse_only = my $external_net = my $multiple = 0;
+	my $forwards_only = my $reverse_only = my $external_net = my $multiple = my $ifndef = 0;
 
-   # If the record starts with ">E ", ">F ", ">M " or ">R " set flags for
+   # If the record starts with ">E ", ">F ", ">M ", ">N " or ">R " set flags for
    # later checks once the type of record is known, and remove these characters.
    # $forwards_only must always be set if $external_net is set. If ">E" etc. are
    # followed by a tab, this must be interpreted as if it were several spaces;
    # the right thing happens if the tab is not removed.
 
-	my $rest;
-	if (/^>E(?=\s) ?(.*)/) {
+	my $flags = "";
+	my $rest = $_;
+	if ($rest =~ s/^>([A-Z]*)(?=\s) ?//) {
+		$flags = $1;
+	}
+	if ($flags =~ /E/) {
 		$forwards_only = $external_net = 1;
-		$rest = $1;
 	}
-	elsif (/^>F(?=\s) ?(.*)/) {
+	if ($flags =~ /F/) {
 		$forwards_only = 1;
-		$rest = $1;
 	}
-	elsif (/^>M(?=\s) ?(.*)/) {
+	if ($flags =~ /M/) {
 		$multiple = 1;
-		$rest = $1;
 	}
-	elsif (/^>R(?=\s) ?(.*)/) {
+	if ($flags =~ /N/) {
+		$ifndef = 1;
+	}
+	if ($flags =~ /R/) {
 		$reverse_only = 1;
-		$rest = $1;
 	}
-	elsif (/^>Z$/) {
+	if ($flags =~ /Z/ and $rest eq "") {
 		undef $default_zone;
 		return;
 	}
-	elsif (/^>Z\s+(.*)/) {
+	if ($flags =~ /Z/ and $rest =~ /^\s*(.*)/) {
 		my $name = $1;
 		if ( defined(my $i = [grep { $name eq $zone[$_]{name} } 0..scalar @zone-1]->[0]) ) {
 			$default_zone = $i;
@@ -1201,7 +1207,6 @@ sub handle_record {
 		}
 		return;
 	}
-	else { $rest = $_; }
 
 	# Split the line into the first field (name) and the rest
 	# of the line. Name is null if the line starts with a space.
@@ -1262,8 +1267,8 @@ sub handle_record {
 	# specified only for A records, except that >E may be specified for
 	# WKS records, and >M for PTR records.
 
-	if ($multiple) {
-		&error(">M may be specified only for type A or type PTR records.")
+	if ($multiple || $ifndef) {
+		&error(">M or >I may be specified only for type A or type PTR records.")
 		  if ( $type ne "A"
 			&& $type ne "AAAA"
 			&& $type ne "PTR"
@@ -1432,7 +1437,9 @@ sub handle_record {
 
 		if($params eq $ipv4_params) {
 			my ($nn)              = $names{"$fqdn"} || 0;
-			if ( $duplicate_name_check && $printname !~ /^\s*$/ && $nn > 0 ) {
+			if ( $duplicate_name_check && $printname !~ /^\s*$/ && $nn > 0 && !$multiple ) {
+				return
+					if $ifndef;
 				&error( "unexpected duplicate name.\n"
 					  . "** The first occurrence was in line $nn." );
 			}
@@ -1445,7 +1452,9 @@ sub handle_record {
 		} else {
 			my ($nn)              = $names_v6{"$fqdn"} || 0;
 
-			if ( $duplicate_name_check && $printname !~ /^\s*$/ && $nn > 0 ) {
+			if ( $duplicate_name_check && $printname !~ /^\s*$/ && $nn > 0 && !$multiple ) {
+				return
+					if $ifndef;
 				&error( "unexpected duplicate name.\n"
 					  . "** The first occurrence was in line $nn." );
 			}
@@ -1481,6 +1490,8 @@ sub handle_record {
 		if ( !$forwards_only ) {
 			my $thisaddress = $addr_normalized;
 			if ( $addresses{"$thisaddress"} && !$multiple ) {
+				return
+					if $ifndef;
 				&error(
 "duplicate IP address $thisaddress specified for a PTR record.\n"
 					  . "** Use the >M flag if multiple PTR records are required.\n"
@@ -1569,6 +1580,8 @@ sub handle_record {
 			else {
 				my $thisaddress = $addr_normalized;
 				if ( $addresses{"$thisaddress"} && !$multiple ) {
+					return
+						if $ifndef;
 					&error(     "duplicate IP address $thisaddress specified for a PTR record.\n"
 						  . "** Use the >M flag if multiple PTR records are required.\n"
 						  . "** The first occurrence was in line $addresses{$thisaddress}."
