@@ -501,14 +501,19 @@ my $all_wildcards = 1;
 my $nline;
 my $source_file;
 
-sub give_up {
+$SIG{__DIE__} = sub {
 	&remove_temps();
-	print "\n** Makezones: $_[0]\n";
-	if ( $nline > 0 ) {
+	print "\n** Makezones: $_[0]";
+	if ( defined $nline and $nline > 0 ) {
 		print "   At line $nline of $source_file:\n";
 		print "   $_";
 	}
-	die "** Processing abandoned.\n\n";
+	print STDERR "** Processing abandoned.\n\n";
+	exit 1;
+};
+
+sub give_up {
+	die @_, "\n";
 }
 
 ##################################################
@@ -519,8 +524,8 @@ sub give_up {
 
 my $errors = 0;
 
-sub error {
-	print "\n** Makezones: $_[0]\n";
+$SIG{__WARN__} = sub {
+	print "\n** Makezones: $_[0]";
 	if ( $nline > 0 ) {
 		print "   At line $nline of $source_file:\n";
 		print "   $_";
@@ -529,6 +534,10 @@ sub error {
 		&remove_temps();
 		die "\n** Makezones: too many errors - processing abandoned.\n\n";
 	}
+};
+
+sub error {
+	warn @_, "\n";
 }
 
 ##################################################
