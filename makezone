@@ -300,7 +300,7 @@ my $all_wildcards = 1;
 #
 #   . The flag ">N " can be used to skip including an A or PTR record if it has
 #     already been defined.
-# 
+#
 #   . We want to be able to check that all IP addresses are in one of the
 #     networks that we are processing for. However, occasionally a record must
 #     specify an external network (glue records are the prime example). Such
@@ -505,18 +505,18 @@ my $nline;
 my $source_file;
 
 $SIG{__DIE__} = sub {
-	&remove_temps();
-	print "\n** Makezones: $_[0]";
-	if ( defined $nline and $nline > 0 ) {
-		print "   At line $nline of $source_file:\n";
-		print "   $_";
-	}
-	print STDERR "** Processing abandoned.\n\n";
-	exit 1;
+    &remove_temps();
+    print "\n** Makezones: $_[0]";
+    if ( defined $nline and $nline > 0 ) {
+        print "   At line $nline of $source_file:\n";
+        print "   $_";
+    }
+    print STDERR "** Processing abandoned.\n\n";
+    exit 1;
 };
 
 sub give_up {
-	die @_, "\n";
+    die @_, "\n";
 }
 
 ##################################################
@@ -528,154 +528,192 @@ sub give_up {
 my $errors = 0;
 
 $SIG{__WARN__} = sub {
-	print "\n** Makezones: $_[0]";
-	if ( $nline > 0 ) {
-		print "   At line $nline of $source_file:\n";
-		print "   $_";
-	}
-	if ( ++$errors > 10 ) {
-		&remove_temps();
-		die "\n** Makezones: too many errors - processing abandoned.\n\n";
-	}
+    print "\n** Makezones: $_[0]";
+    if ( $nline > 0 ) {
+        print "   At line $nline of $source_file:\n";
+        print "   $_";
+    }
+    if ( ++$errors > 10 ) {
+        &remove_temps();
+        die "\n** Makezones: too many errors - processing abandoned.\n\n";
+    }
 };
 
 sub error {
-	warn @_, "\n";
+    warn @_, "\n";
 }
 
 ##################################################
 #       Zone data structures                     #
 ##################################################
 
-my @zone              = ();
-	# each member is a hash with members file, name, handle
+my @zone = ();
 
-my @rzone             = ();
-	# each member is a hash with members file, name, prefix, prefixlen, handle
+# each member is a hash with members file, name, handle
 
-my @rzone6            = ();
-	# each member is a hash with members file, name, prefix, prefixlen, handle
+my @rzone = ();
+
+# each member is a hash with members file, name, prefix, prefixlen, handle
+
+my @rzone6 = ();
+
+# each member is a hash with members file, name, prefix, prefixlen, handle
 
 ##################################################
 #       Print line to all reverse zone files     #
 ##################################################
 
 sub print_reverse {
-	my ($i);
-	for ( $i = 0 ; $i < scalar @rzone ; $i++ ) {
-		my $handle = $rzone[$i]{handle};
-		print $handle $_[0];
-	}
-	for ( $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
-		my $handle = $rzone6[$i]{handle};
-		print $handle $_[0];
-	}
+    my ($i);
+    for ( $i = 0 ; $i < scalar @rzone ; $i++ ) {
+        my $handle = $rzone[$i]{handle};
+        print $handle $_[0];
+    }
+    for ( $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
+        my $handle = $rzone6[$i]{handle};
+        print $handle $_[0];
+    }
 }
 
 sub print_forward {
-	my ($i);
-	for ( $i = 0 ; $i < scalar @zone ; $i++ ) {
-		my $handle = $zone[$i]{handle};
-		print $handle $_[0];
-	}
+    my ($i);
+    for ( $i = 0 ; $i < scalar @zone ; $i++ ) {
+        my $handle = $zone[$i]{handle};
+        print $handle $_[0];
+    }
 }
 
 ##################################################
 #   IPv4+6 support                               #
 ##################################################
 
-my $ipv4_params = { words => 4, bits =>  8, revbits => 8, recordtype => "A",    suffix => ".IN-ADDR.ARPA", rzone => \@rzone  };
-my $ipv6_params = { words => 8, bits => 16, revbits => 4, recordtype => "AAAA", suffix => ".IP6.ARPA",     rzone => \@rzone6 };
+my $ipv4_params = {
+    words      => 4,
+    bits       => 8,
+    revbits    => 8,
+    recordtype => "A",
+    suffix     => ".IN-ADDR.ARPA",
+    rzone      => \@rzone
+};
+my $ipv6_params = {
+    words      => 8,
+    bits       => 16,
+    revbits    => 4,
+    recordtype => "AAAA",
+    suffix     => ".IP6.ARPA",
+    rzone      => \@rzone6
+};
 
 sub match_prefix_ip {
-	my ( $params, $addr, $net, $prefixlen ) = @_;
-	my $different = 0;
-	for(0..($params->{words}-1)) {
-		my $a = $addr->[$_];
-		my $n = $net->[$_];
-		$different ||= ($a != $n);
-		my $cbits = $prefixlen - $params->{bits} * $_;
-		$cbits = $params->{bits} if $cbits > $params->{bits};
-		$cbits = 0 if $cbits < 0;
-		next if $cbits == 0;
-		if($cbits < $params->{bits})
-		{
-			$a >>= ($params->{bits} - $cbits);
-			$n >>= ($params->{bits} - $cbits);
-		}
-		return 0 if $a != $n;
-	}
-	return $different ? 1 : 2; # 2 means equal
+    my ( $params, $addr, $net, $prefixlen ) = @_;
+    my $different = 0;
+    for ( 0 .. ( $params->{words} - 1 ) ) {
+        my $a = $addr->[$_];
+        my $n = $net->[$_];
+        $different ||= ( $a != $n );
+        my $cbits = $prefixlen - $params->{bits} * $_;
+        $cbits = $params->{bits} if $cbits > $params->{bits};
+        $cbits = 0 if $cbits < 0;
+        next if $cbits == 0;
+        if ( $cbits < $params->{bits} ) {
+            $a >>= ( $params->{bits} - $cbits );
+            $n >>= ( $params->{bits} - $cbits );
+        }
+        return 0 if $a != $n;
+    }
+    return $different ? 1 : 2;    # 2 means equal
 }
 
 sub bit_ip {
-	my ( $params, $addr, $bit, $newvalue ) = @_;
-	my $pos = ($params->{words} - 1) - int($bit / $params->{bits});
-	my $val = (1 << ($bit % $params->{bits}));
-	my $old = ($addr->[$pos] & $val);
-	if(defined $newvalue) {
-		if($newvalue and not $old) {
-			$addr->[$pos] += $val;
-		} elsif($old and not $newvalue) {
-			$addr->[$pos] -= $val;
-		}
-	}
-	return $old;
+    my ( $params, $addr, $bit, $newvalue ) = @_;
+    my $pos = ( $params->{words} - 1 ) - int( $bit / $params->{bits} );
+    my $val = ( 1 << ( $bit % $params->{bits} ) );
+    my $old = ( $addr->[$pos] & $val );
+    if ( defined $newvalue ) {
+        if ( $newvalue and not $old ) {
+            $addr->[$pos] += $val;
+        }
+        elsif ( $old and not $newvalue ) {
+            $addr->[$pos] -= $val;
+        }
+    }
+    return $old;
 }
 
 sub increment_ip {
-	my ( $params, $addr, $incbit, $incamount ) = @_;
-	if ( $incamount > 1 ) {
-		return increment_ip ( $params, increment_ip ( $params, $addr, $incbit+1, int($incamount / 2) ), $incbit, $incamount % 2 );
-	} elsif ( $incamount < 1 ) {
-		return $addr;
-	} else {
-		# increment by ONE
-		my $carry = 1;
-		$addr = [@$addr]; # copy
-		while($carry) {
-			$carry = bit_ip $params, $addr, $incbit;
-			bit_ip $params, $addr, $incbit, !$carry;
-		}
-		return $addr;
-	}
+    my ( $params, $addr, $incbit, $incamount ) = @_;
+    if ( $incamount > 1 ) {
+        return increment_ip(
+            $params,
+            increment_ip( $params, $addr, $incbit + 1, int( $incamount / 2 ) ),
+            $incbit,
+            $incamount % 2
+        );
+    }
+    elsif ( $incamount < 1 ) {
+        return $addr;
+    }
+    else {
+
+        # increment by ONE
+        my $carry = 1;
+        $addr = [@$addr];    # copy
+        while ($carry) {
+            $carry = bit_ip $params, $addr, $incbit;
+            bit_ip $params, $addr, $incbit, !$carry;
+        }
+        return $addr;
+    }
 }
 
 sub list_ip_noncidr {
-	my ($params, $prefix, $prefixlen) = @_;
-	return [$prefix, $prefixlen]
-		if $prefixlen % $params->{revbits} == 0;
-	my $newprefixlen = $prefixlen + $params->{revbits} - ($prefixlen % $params->{revbits});
-	my $newprefix = $prefix;
-	my $n = (1 << ($newprefixlen - $prefixlen));
-	return map { [increment_ip($params, $newprefix, $params->{words}*$params->{bits}-$newprefixlen, $_), $newprefixlen]  } 0..($n-1);
+    my ( $params, $prefix, $prefixlen ) = @_;
+    return [ $prefix, $prefixlen ]
+      if $prefixlen % $params->{revbits} == 0;
+    my $newprefixlen =
+      $prefixlen + $params->{revbits} - ( $prefixlen % $params->{revbits} );
+    my $newprefix = $prefix;
+    my $n = ( 1 << ( $newprefixlen - $prefixlen ) );
+    return map {
+        [
+            increment_ip(
+                $params, $newprefix,
+                $params->{words} * $params->{bits} - $newprefixlen, $_
+            ),
+            $newprefixlen
+        ]
+    } 0 .. ( $n - 1 );
 }
 
 sub find_zone_ip {
-	my ( $params, $subnet, @addr ) = @_;
-	my ( $rzone );
+    my ( $params, $subnet, @addr ) = @_;
+    my ($rzone);
 
-	my $bestzone = undef;
+    my $bestzone = undef;
 
-	for ( $rzone = 0 ; $rzone < scalar @{$params->{rzone}} ; $rzone++ ) {
-		my $cmp = match_prefix_ip $params, \@addr, $params->{rzone}[$rzone]{prefix}, $params->{rzone}[$rzone]{prefixlen};
-		$bestzone = $rzone
-		  if $cmp && (!defined $bestzone || $params->{rzone}[$rzone]{prefix} >= $params->{rzone}[$bestzone]{prefix})
-		  && ( ( $subnet == 0 ) || ( $cmp != 2 ) );
-	}
+    for ( $rzone = 0 ; $rzone < scalar @{ $params->{rzone} } ; $rzone++ ) {
+        my $cmp = match_prefix_ip $params, \@addr,
+          $params->{rzone}[$rzone]{prefix}, $params->{rzone}[$rzone]{prefixlen};
+        $bestzone = $rzone
+          if $cmp
+              && ( !defined $bestzone
+                  || $params->{rzone}[$rzone]{prefix} >=
+                  $params->{rzone}[$bestzone]{prefix} )
+              && ( ( $subnet == 0 ) || ( $cmp != 2 ) );
+    }
 
-	return $bestzone;
+    return $bestzone;
 }
 
 sub cname_hack {
-	my ($subnet, $prefixlen) = @_;
+    my ( $subnet, $prefixlen ) = @_;
 
-	if($subnet =~ /^(.*?)\.(.*)$/) {
-		return "$1/$prefixlen.$2";
-	}
+    if ( $subnet =~ /^(.*?)\.(.*)$/ ) {
+        return "$1/$prefixlen.$2";
+    }
 
-	&error("cname hack but no dots?");
-	return undef;
+    &error("cname hack but no dots?");
+    return undef;
 }
 
 ##################################################
@@ -683,80 +721,85 @@ sub cname_hack {
 ##################################################
 
 sub parse_v4 {
-	my ($addr) = @_;
-	my (@addr);
+    my ($addr) = @_;
+    my (@addr);
 
-	&error("invalid ipv4 address: $addr")
-		if $addr =~ /^$|[^0-9.]/;
+    &error("invalid ipv4 address: $addr")
+      if $addr =~ /^$|[^0-9.]/;
 
-	@addr = split /\./, $addr;
-	push @addr, 0
-		while @addr < 4;
-	&error("invalid ipv4 address: $addr")
-		if @addr != 4;
-	if ( grep { $_ < 0 || $_ > 255 } @addr ) {
-		&error("IPv4 address contains component with value greater than ffff.");
-		return;
-	}
-	return @addr;
+    @addr = split /\./, $addr;
+    push @addr, 0 while @addr < 4;
+    &error("invalid ipv4 address: $addr")
+      if @addr != 4;
+    if ( grep { $_ < 0 || $_ > 255 } @addr ) {
+        &error("IPv4 address contains component with value greater than ffff.");
+        return;
+    }
+    return @addr;
 }
 
 sub format_v4_forward {
-	my (@addr) = @_;
-	return sprintf "%d.%d.%d.%d", @addr;
+    my (@addr) = @_;
+    return sprintf "%d.%d.%d.%d", @addr;
 }
 
 # format a v4 address as part of a given reverse zone (prefix, prefixlen)
 # currently this supports only %8 zones!
 sub format_v4_reverse_inzone {
-	my ($subprefix, $subprefixlen, $prefix, $prefixlen) = @_;
-	&error("Invalid prefixlen $prefixlen")
-		if $prefixlen < 0 || $prefixlen > 32;
-	&error("Invalid subprefixlen $subprefixlen")
-		if $subprefixlen < 0 || $subprefixlen > 32;
-	&error("$subprefixlen not inside the prefix $prefixlen")
-		if $subprefixlen < $prefixlen || !match_prefix_v4($subprefix, $prefix, $prefixlen);
-	&error("currently no support for more than 8 bits granularity")
-		if $prefixlen % 8 || $subprefixlen % 8;
+    my ( $subprefix, $subprefixlen, $prefix, $prefixlen ) = @_;
+    &error("Invalid prefixlen $prefixlen")
+      if $prefixlen < 0 || $prefixlen > 32;
+    &error("Invalid subprefixlen $subprefixlen")
+      if $subprefixlen < 0 || $subprefixlen > 32;
+    &error("$subprefixlen not inside the prefix $prefixlen")
+      if $subprefixlen < $prefixlen
+          || !match_prefix_v4( $subprefix, $prefix, $prefixlen );
+    &error("currently no support for more than 8 bits granularity")
+      if $prefixlen % 8 || $subprefixlen % 8;
 
-	my @l = @$subprefix;
-	if($subprefixlen == 32) {
-		if($prefixlen == 0) {
-			return join ".", reverse @l;
-		} else {
-			return join ".", reverse @l[($prefixlen / 8)..@l-1];
-		}
-	} else {
-		if($prefixlen == 0) {
-			if($subprefixlen == 0) {
-				return "";
-			} else {
-				return join ".", reverse @l[0..($subprefixlen / 8 - 1)];
-			}
-		} else {
-			return join ".", reverse @l[($prefixlen / 8)..($subprefixlen / 8 - 1)];
-		}
-	}
+    my @l = @$subprefix;
+    if ( $subprefixlen == 32 ) {
+        if ( $prefixlen == 0 ) {
+            return join ".", reverse @l;
+        }
+        else {
+            return join ".", reverse @l[ ( $prefixlen / 8 ) .. @l - 1 ];
+        }
+    }
+    else {
+        if ( $prefixlen == 0 ) {
+            if ( $subprefixlen == 0 ) {
+                return "";
+            }
+            else {
+                return join ".", reverse @l[ 0 .. ( $subprefixlen / 8 - 1 ) ];
+            }
+        }
+        else {
+            return join ".",
+              reverse @l[ ( $prefixlen / 8 ) .. ( $subprefixlen / 8 - 1 ) ];
+        }
+    }
 }
 
 sub match_prefix_v4 {
-	return match_prefix_ip $ipv4_params, @_;
+    return match_prefix_ip $ipv4_params, @_;
 }
 
 sub bit_v4 {
-	return bit_ip $ipv4_params, @_;
+    return bit_ip $ipv4_params, @_;
 }
 
 sub increment_v4 {
-	return increment_ip $ipv4_params, @_;
+    return increment_ip $ipv4_params, @_;
 }
 
 sub list_v4_noncidr {
-	return list_ip_noncidr $ipv4_params, @_;
+    return list_ip_noncidr $ipv4_params, @_;
 }
 
 sub find_zone_v4 {
-	return find_zone_ip $ipv4_params, @_;
+    return find_zone_ip $ipv4_params, @_;
 }
 
 ##################################################
@@ -764,89 +807,96 @@ sub find_zone_v4 {
 ##################################################
 
 sub parse_v6 {
-	my ($addr) = @_;
-	my (@addr);
+    my ($addr) = @_;
+    my (@addr);
 
-	&error("invalid ipv6 address: $addr")
-		if $addr =~ /^$|[^0-9a-fA-F:]/;
+    &error("invalid ipv6 address: $addr")
+      if $addr =~ /^$|[^0-9a-fA-F:]/;
 
-	if ( $addr =~ /([0-9a-fA-F:]*)::([0-9a-fA-F:]*)/ ) {
-		my ($addr_pre)  = $1;
-		my ($addr_post) = $2;
-		my (@addr_pre)  = map { hex $_ } split /:/, $addr_pre;
-		my (@addr_post) = map { hex $_ } split /:/, $addr_post;
-		&error("invalid ipv6 address: $addr\n")
-			if @addr_pre + @addr_post > 8;
-		@addr = ( @addr_pre, (0) x ( 8 - @addr_pre - @addr_post ), @addr_post );
-	}
-	else {
-		@addr = map { hex $_ } split /:/, $addr;
-		&error("invalid ipv6 address: $addr\n")
-			if @addr != 8;
-	}
-	if ( grep { $_ < 0 || $_ > 65535 } @addr ) {
-		&error("IPv6 address contains component with value greater than ffff.");
-		return;
-	}
-	return @addr;
+    if ( $addr =~ /([0-9a-fA-F:]*)::([0-9a-fA-F:]*)/ ) {
+        my ($addr_pre)  = $1;
+        my ($addr_post) = $2;
+        my (@addr_pre)  = map { hex $_ } split /:/, $addr_pre;
+        my (@addr_post) = map { hex $_ } split /:/, $addr_post;
+        &error("invalid ipv6 address: $addr\n")
+          if @addr_pre + @addr_post > 8;
+        @addr = ( @addr_pre, (0) x ( 8 - @addr_pre - @addr_post ), @addr_post );
+    }
+    else {
+        @addr = map { hex $_ } split /:/, $addr;
+        &error("invalid ipv6 address: $addr\n")
+          if @addr != 8;
+    }
+    if ( grep { $_ < 0 || $_ > 65535 } @addr ) {
+        &error("IPv6 address contains component with value greater than ffff.");
+        return;
+    }
+    return @addr;
 }
 
 sub format_v6_forward {
-	my (@addr) = @_;
-	return sprintf "%x:%x:%x:%x:%x:%x:%x:%x", @addr;
+    my (@addr) = @_;
+    return sprintf "%x:%x:%x:%x:%x:%x:%x:%x", @addr;
 }
 
 # format a v6 address as part of a given reverse zone (prefix, prefixlen)
 # currently this supports only %4 zones!
 sub format_v6_reverse_inzone {
-	my ($subprefix, $subprefixlen, $prefix, $prefixlen) = @_;
-	&error("Invalid prefixlen $prefixlen")
-		if $prefixlen < 0 || $prefixlen > 128;
-	&error("Invalid subprefixlen $subprefixlen")
-		if $subprefixlen < 0 || $subprefixlen > 128;
-	&error("$subprefixlen not inside the prefix $prefixlen")
-		if $subprefixlen < $prefixlen || !match_prefix_v6($subprefix, $prefix, $prefixlen);
-	&error("currently no support for more than 4 bits granularity")
-		if $prefixlen % 4 || $subprefixlen % 4;
-	my $s = join '.', split //,
-	   reverse sprintf "%04x%04x%04x%04x%04x%04x%04x%04x", @$subprefix;
-	if($subprefixlen == 128) {
-		if($prefixlen == 0) {
-			return $s;
-		} else {
-			return substr $s, 0, -(($prefixlen / 4) * 2);
-		}
-	} else {
-		if($prefixlen == 0) {
-			if($subprefixlen == 0) {
-				return "";
-			} else {
-				return substr $s, -(($subprefixlen / 4) * 2 - 1);
-			}
-		} else {
-			return substr $s, -(($subprefixlen / 4) * 2 - 1), -(($prefixlen / 4) * 2);
-		}
-	}
+    my ( $subprefix, $subprefixlen, $prefix, $prefixlen ) = @_;
+    &error("Invalid prefixlen $prefixlen")
+      if $prefixlen < 0 || $prefixlen > 128;
+    &error("Invalid subprefixlen $subprefixlen")
+      if $subprefixlen < 0 || $subprefixlen > 128;
+    &error("$subprefixlen not inside the prefix $prefixlen")
+      if $subprefixlen < $prefixlen
+          || !match_prefix_v6( $subprefix, $prefix, $prefixlen );
+    &error("currently no support for more than 4 bits granularity")
+      if $prefixlen % 4 || $subprefixlen % 4;
+    my $s = join '.', split //,
+      reverse sprintf "%04x%04x%04x%04x%04x%04x%04x%04x", @$subprefix;
+    if ( $subprefixlen == 128 ) {
+
+        if ( $prefixlen == 0 ) {
+            return $s;
+        }
+        else {
+            return substr $s, 0, -( ( $prefixlen / 4 ) * 2 );
+        }
+    }
+    else {
+        if ( $prefixlen == 0 ) {
+            if ( $subprefixlen == 0 ) {
+                return "";
+            }
+            else {
+                return substr $s, -( ( $subprefixlen / 4 ) * 2 - 1 );
+            }
+        }
+        else {
+            return substr $s, -( ( $subprefixlen / 4 ) * 2 - 1 ),
+              -( ( $prefixlen / 4 ) * 2 );
+        }
+    }
 }
 
 sub match_prefix_v6 {
-	return match_prefix_ip $ipv6_params, @_;
+    return match_prefix_ip $ipv6_params, @_;
 }
 
 sub bit_v6 {
-	return bit_ip $ipv6_params, @_;
+    return bit_ip $ipv6_params, @_;
 }
 
 sub increment_v6 {
-	return increment_ip $ipv6_params, @_;
+    return increment_ip $ipv6_params, @_;
 }
 
 sub list_v6_noncidr {
-	return list_ip_noncidr $ipv6_params, @_;
+    return list_ip_noncidr $ipv6_params, @_;
 }
 
 sub find_zone_v6 {
-	return find_zone_ip $ipv6_params, @_;
+    return find_zone_ip $ipv6_params, @_;
 }
 
 ##################################################
@@ -854,36 +904,42 @@ sub find_zone_v6 {
 ##################################################
 
 sub parse_ip {
-	my ($params, @rest) = @_;
-	if ($params eq $ipv4_params) {
-		return parse_v4 @rest;
-	} elsif ($params eq $ipv6_params) {
-		return parse_v6 @rest;
-	} else {
-		&give_up("Invalid call to parse_ip");
-	}
+    my ( $params, @rest ) = @_;
+    if ( $params eq $ipv4_params ) {
+        return parse_v4 @rest;
+    }
+    elsif ( $params eq $ipv6_params ) {
+        return parse_v6 @rest;
+    }
+    else {
+        &give_up("Invalid call to parse_ip");
+    }
 }
 
 sub format_ip_forward {
-	my ($params, @rest) = @_;
-	if ($params eq $ipv4_params) {
-		return format_v4_forward @rest;
-	} elsif ($params eq $ipv6_params) {
-		return format_v6_forward @rest;
-	} else {
-		&give_up("Invalid call to format_ip_forward");
-	}
+    my ( $params, @rest ) = @_;
+    if ( $params eq $ipv4_params ) {
+        return format_v4_forward @rest;
+    }
+    elsif ( $params eq $ipv6_params ) {
+        return format_v6_forward @rest;
+    }
+    else {
+        &give_up("Invalid call to format_ip_forward");
+    }
 }
 
 sub format_ip_reverse_inzone {
-	my ($params, @rest) = @_;
-	if ($params eq $ipv4_params) {
-		return format_v4_reverse_inzone @rest;
-	} elsif ($params eq $ipv6_params) {
-		return format_v6_reverse_inzone @rest;
-	} else {
-		&give_up("Invalid call to format_ip_reverse_inzone");
-	}
+    my ( $params, @rest ) = @_;
+    if ( $params eq $ipv4_params ) {
+        return format_v4_reverse_inzone @rest;
+    }
+    elsif ( $params eq $ipv6_params ) {
+        return format_v6_reverse_inzone @rest;
+    }
+    else {
+        &give_up("Invalid call to format_ip_reverse_inzone");
+    }
 }
 
 ##################################################
@@ -893,78 +949,113 @@ sub format_ip_reverse_inzone {
 # Exit from the whole program on failure.
 
 sub unpick_args_addzones {
-	my ($params, $file, $prefix, $prefixlen) = @_;
+    my ( $params, $file, $prefix, $prefixlen ) = @_;
 
-	&give_up("bad prefix length $prefixlen")
-		if ( $prefixlen <= 0 || $prefixlen >= $params->{bits} * $params->{words} );
+    &give_up("bad prefix length $prefixlen")
+      if ( $prefixlen <= 0
+        || $prefixlen >= $params->{bits} * $params->{words} );
 
-	if($prefixlen > $params->{bits} * $params->{words} - $params->{revbits}) {
-		# detect a "CNAME delegation"
-		my $zone = ($params->{rzone}[scalar @{$params->{rzone}}] = {});
-		$zone->{prefix} = $prefix;
-		$zone->{prefixlen} = $prefixlen;
-		$zone->{file} = $file;
-		my $subnet = format_ip_reverse_inzone($params, $prefix, $params->{bits} * $params->{words}, [(0) x $params->{words}], 0);
-		my $subnet_name = cname_hack $subnet, $prefixlen;
-		$zone->{name} = $subnet_name . $params->{suffix};
-	} else {
-		# detect a "multi-NS delegation" and use multiple zone files then
-		my @l = list_ip_noncidr $params, $prefix, $prefixlen;
-		for(@l) {
-			my $subnet = format_ip_reverse_inzone($params, $_->[0], $_->[1], [(0) x $params->{words}], 0);
-			my $zone = ($params->{rzone}[scalar @{$params->{rzone}}] = {});
-			$zone->{prefix} = $_->[0];
-			$zone->{prefixlen} = $_->[1];
-			$subnet =~ /^([^.]+)/;
-			$zone->{file} = $file . (@l == 1 ? "" : ".$1");
-			$zone->{name} = $subnet . $params->{suffix};
-		}
-	}
+    if ( $prefixlen > $params->{bits} * $params->{words} - $params->{revbits} )
+    {
+
+        # detect a "CNAME delegation"
+        my $zone = ( $params->{rzone}[ scalar @{ $params->{rzone} } ] = {} );
+        $zone->{prefix}    = $prefix;
+        $zone->{prefixlen} = $prefixlen;
+        $zone->{file}      = $file;
+        my $subnet = format_ip_reverse_inzone(
+            $params, $prefix,
+            $params->{bits} * $params->{words},
+            [ (0) x $params->{words} ], 0
+        );
+        my $subnet_name = cname_hack $subnet, $prefixlen;
+        $zone->{name} = $subnet_name . $params->{suffix};
+    }
+    else {
+
+        # detect a "multi-NS delegation" and use multiple zone files then
+        my @l = list_ip_noncidr $params, $prefix, $prefixlen;
+        for (@l) {
+            my $subnet =
+              format_ip_reverse_inzone( $params, $_->[0], $_->[1],
+                [ (0) x $params->{words} ], 0 );
+            my $zone =
+              ( $params->{rzone}[ scalar @{ $params->{rzone} } ] = {} );
+            $zone->{prefix}    = $_->[0];
+            $zone->{prefixlen} = $_->[1];
+            $subnet =~ /^([^.]+)/;
+            $zone->{file} = $file . ( @l == 1 ? "" : ".$1" );
+            $zone->{name} = $subnet . $params->{suffix};
+        }
+    }
 }
 
 sub unpick_args {
-	@zone   = ();
-	@rzone  = ();
-	@rzone6 = ();
+    @zone   = ();
+    @rzone  = ();
+    @rzone6 = ();
 
-	# Handle options
+    # Handle options
 
-	while(@ARGV) {
-		$_ = shift @ARGV;
-		if(/^-short$/) {
-			$opt_short = 1;
-		} elsif(/^-f$/) {
-			# forward zone
-			my $zone = ($zone[scalar @zone] = {});
-			($zone->{name} = shift @ARGV) =~ s/\.$//; # remove trailing dot if present
-			$zone->{file} = shift @ARGV;
-		} elsif(/^-r$/) {
-			# reverse zone(s)
-			my ($addr) = shift @ARGV;
-			my ($file) = shift @ARGV;
-			if($addr =~ /^(.*:.*)\/(\d+)$/)    # IPv6
-			{
-				my ($v6addr, $prefixlen) = ($1, $2);
-				unpick_args_addzones($ipv6_params, $file, [parse_v6($v6addr)], $prefixlen);
-			}
-			elsif($addr =~ /^(\d+)(?:\.(\d+)(?:\.(\d+)(?:\.(\d+))?)?)?(?:\/(\d+))?$/) {
-				my ($a, $b, $c, $d, $prefixlen) = ($1, $2||0, $3||0, $4||0, $5 || (defined $4 ? 32 : defined $3 ? 24 : defined $2 ? 16 : 8));
-				my $v4addr = "$a.$b.$c.$d";
-				unpick_args_addzones($ipv4_params, $file, [parse_v4($v4addr)], $prefixlen);
-			} else {
-				&give_up("reverse zone $addr: illegal format");
-			}
-		} elsif(/^-/) {
-			&give_up("unknown option \"$ARGV[0]\"");
-		} else {
-			&give_up("already have a source file")
-				if defined $source_file;
-			$source_file = $_;
-		}
-	}
+    while (@ARGV) {
+        $_ = shift @ARGV;
+        if (/^-short$/) {
+            $opt_short = 1;
+        }
+        elsif (/^-f$/) {
 
-	&give_up("do not have a source file")
-		if not defined $source_file;
+            # forward zone
+            my $zone = ( $zone[ scalar @zone ] = {} );
+            ( $zone->{name} = shift @ARGV ) =~
+              s/\.$//;    # remove trailing dot if present
+            $zone->{file} = shift @ARGV;
+        }
+        elsif (/^-r$/) {
+
+            # reverse zone(s)
+            my ($addr) = shift @ARGV;
+            my ($file) = shift @ARGV;
+            if ( $addr =~ /^(.*:.*)\/(\d+)$/ )    # IPv6
+            {
+                my ( $v6addr, $prefixlen ) = ( $1, $2 );
+                unpick_args_addzones( $ipv6_params, $file,
+                    [ parse_v6($v6addr) ], $prefixlen );
+            }
+            elsif ( $addr =~
+                /^(\d+)(?:\.(\d+)(?:\.(\d+)(?:\.(\d+))?)?)?(?:\/(\d+))?$/ )
+            {
+                my ( $a, $b, $c, $d, $prefixlen ) = (
+                    $1,
+                    $2 || 0,
+                    $3 || 0,
+                    $4 || 0,
+                    $5
+                      || (
+                          defined $4 ? 32
+                        : defined $3 ? 24
+                        : defined $2 ? 16
+                        :              8 )
+                );
+                my $v4addr = "$a.$b.$c.$d";
+                unpick_args_addzones( $ipv4_params, $file,
+                    [ parse_v4($v4addr) ], $prefixlen );
+            }
+            else {
+                &give_up("reverse zone $addr: illegal format");
+            }
+        }
+        elsif (/^-/) {
+            &give_up("unknown option \"$ARGV[0]\"");
+        }
+        else {
+            &give_up("already have a source file")
+              if defined $source_file;
+            $source_file = $_;
+        }
+    }
+
+    &give_up("do not have a source file")
+      if not defined $source_file;
 }
 
 ##################################################
@@ -972,52 +1063,55 @@ sub unpick_args {
 ##################################################
 
 sub verify {
-	print "\nMakezones $version_number\n";
-	print "Generating DNS zone files from $source_file.\n";
+    print "\nMakezones $version_number\n";
+    print "Generating DNS zone files from $source_file.\n";
 
-	printf "  Forward zone file%s ", ( scalar @zone == 1 ) ? ": " : "s:";
-	if ( scalar @zone > 0 ) {
-		for ( my $i = 0 ; $i < scalar @zone ; $i++ ) {
-			print " " x 22 if $i != 0;
-			print "$zone[$i]{file} ($zone[$i]{name})\n";
-		}
-	}
-	else { print "<none>\n"; }
+    printf "  Forward zone file%s ", ( scalar @zone == 1 ) ? ": " : "s:";
+    if ( scalar @zone > 0 ) {
+        for ( my $i = 0 ; $i < scalar @zone ; $i++ ) {
+            print " " x 22 if $i != 0;
+            print "$zone[$i]{file} ($zone[$i]{name})\n";
+        }
+    }
+    else { print "<none>\n"; }
 
-	printf "  Reverse zone file%s ", ( scalar @rzone == 1 ) ? ": " : "s:";
-	if ( scalar @rzone > 0 ) {
-		for ( my $i = 0 ; $i < scalar @rzone ; $i++ ) {
-			print " " x 22 if $i != 0;
-			print "$rzone[$i]{file} ($rzone[$i]{name})\n";
-		}
-	}
-	else { print "<none>\n"; }
+    printf "  Reverse zone file%s ", ( scalar @rzone == 1 ) ? ": " : "s:";
+    if ( scalar @rzone > 0 ) {
+        for ( my $i = 0 ; $i < scalar @rzone ; $i++ ) {
+            print " " x 22 if $i != 0;
+            print "$rzone[$i]{file} ($rzone[$i]{name})\n";
+        }
+    }
+    else { print "<none>\n"; }
 
-	printf "  v6 Reverse zone file%s ", ( scalar @rzone6 == 1 ) ? ": " : "s:";
+    printf "  v6 Reverse zone file%s ", ( scalar @rzone6 == 1 ) ? ": " : "s:";
 
-	if ( scalar @rzone6 > 0 ) {
-		for ( my $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
-			print " " x 25 if $i != 0;
-			print "$rzone6[$i]{file} ($rzone6[$i]{name})\n";
-		}
-	}
-	else { print "<none>\n"; }
+    if ( scalar @rzone6 > 0 ) {
+        for ( my $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
+            print " " x 25 if $i != 0;
+            print "$rzone6[$i]{file} ($rzone6[$i]{name})\n";
+        }
+    }
+    else { print "<none>\n"; }
 }
 
 sub named_conf {
-	print "\nnamed.conf example:\n";
+    print "\nnamed.conf example:\n";
 
-	for ( my $i = 0 ; $i < scalar @zone ; $i++ ) {
-		print "zone \"$zone[$i]{name}\" {\n\ttype master;\n\tfile \"$zone[$i]{file}\";\n};\n";
-	}
+    for ( my $i = 0 ; $i < scalar @zone ; $i++ ) {
+        print
+"zone \"$zone[$i]{name}\" {\n\ttype master;\n\tfile \"$zone[$i]{file}\";\n};\n";
+    }
 
-	for ( my $i = 0 ; $i < scalar @rzone ; $i++ ) {
-		print "zone \"$rzone[$i]{name}\" {\n\ttype master;\n\tfile \"$rzone[$i]{file}\";\n};\n";
-	}
+    for ( my $i = 0 ; $i < scalar @rzone ; $i++ ) {
+        print
+"zone \"$rzone[$i]{name}\" {\n\ttype master;\n\tfile \"$rzone[$i]{file}\";\n};\n";
+    }
 
-	for ( my $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
-		print "zone \"$rzone6[$i]{name}\" {\n\ttype master;\n\tfile \"$rzone6[$i]{file}\";\n};\n";
-	}
+    for ( my $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
+        print
+"zone \"$rzone6[$i]{name}\" {\n\ttype master;\n\tfile \"$rzone6[$i]{file}\";\n};\n";
+    }
 }
 
 ##################################################
@@ -1031,73 +1125,73 @@ sub named_conf {
 my $soa_count;
 
 sub update_serial {
-	my ($i);
-	print "\nUpdating the serial number in the source file...\n" if $chatty;
-	open( SOURCE, "+<$source_file" )
-	  || &give_up(
-		"unable to open $source_file for read/write (to update serial)");
+    my ($i);
+    print "\nUpdating the serial number in the source file...\n" if $chatty;
+    open( SOURCE, "+<$source_file" )
+      || &give_up(
+        "unable to open $source_file for read/write (to update serial)");
 
-	# Check out the first line as the start of the SOA data. Skip any
-	# prior comments, counting them so that we know how many lines to
-	# copy when copying the SOA data.
+    # Check out the first line as the start of the SOA data. Skip any
+    # prior comments, counting them so that we know how many lines to
+    # copy when copying the SOA data.
 
-	for ( ; ; ) {
-		$_ = <SOURCE>;
-		last if ( !/^\s*$/ && !/^\s*;/ && !/^\$TTL\s/ );
-		$soa_count++;
-	}
+    for ( ; ; ) {
+        $_ = <SOURCE>;
+        last if ( !/^\s*$/ && !/^\s*;/ && !/^\$TTL\s/ );
+        $soa_count++;
+    }
 
-	my ( $host, $hostmaster );
-	my ( $at, $rest ) = split( /\s+/, $_, 2 );
-	my $ttl;
-	if ( $rest =~ /^\d/ ) {
-		( $ttl, $host, $hostmaster ) =
-		  $rest =~ /^(\d+)\s+IN\s+SOA\s+(\S+)\s+(\S+)\s*\(\s*$/;
-	}
-	else {
-		( $host, $hostmaster ) = $rest =~ /^IN\s+SOA\s+(\S+)\s+(\S+)\s*\(\s*$/;
-	}
+    my ( $host, $hostmaster );
+    my ( $at, $rest ) = split( /\s+/, $_, 2 );
+    my $ttl;
+    if ( $rest =~ /^\d/ ) {
+        ( $ttl, $host, $hostmaster ) =
+          $rest =~ /^(\d+)\s+IN\s+SOA\s+(\S+)\s+(\S+)\s*\(\s*$/;
+    }
+    else {
+        ( $host, $hostmaster ) = $rest =~ /^IN\s+SOA\s+(\S+)\s+(\S+)\s*\(\s*$/;
+    }
 
-	&give_up("malformed SOA record")
-	  if ( $at ne "@" || $host eq "" || $hostmaster eq "" );
+    &give_up("malformed SOA record")
+      if ( $at ne "@" || $host eq "" || $hostmaster eq "" );
 
-	# Remember where to write the second line, read it, and fish
-	# out the serial number.
+    # Remember where to write the second line, read it, and fish
+    # out the serial number.
 
-	my ($pos) = tell SOURCE;
-	$_ = <SOURCE>;
-	my ( $indent, $value ) = /^(\s+)(\d{10})(\s*;.*|)$/;
-	&give_up("malformed serial number line (line 2 of SOA)")
-	  if ( $value eq "" );
+    my ($pos) = tell SOURCE;
+    $_ = <SOURCE>;
+    my ( $indent, $value ) = /^(\s+)(\d{10})(\s*;.*|)$/;
+    &give_up("malformed serial number line (line 2 of SOA)")
+      if ( $value eq "" );
 
-	# Check out the remaining lines of the SOA record
+    # Check out the remaining lines of the SOA record
 
-	for ( $i = 3 ; $i <= 6 ; $i++ ) {
-		$_ = <SOURCE>;
-		my ($check) =
-		  ( $i == 6 ) ? /^\s+(\d+)\s*\)(\s*;.*|)$/ : /^\s+(\d+)(\s*;.*|)$/;
-		&give_up("line $i of the SOA record is malformed") if ( $check eq "" );
-	}
+    for ( $i = 3 ; $i <= 6 ; $i++ ) {
+        $_ = <SOURCE>;
+        my ($check) =
+          ( $i == 6 ) ? /^\s+(\d+)\s*\)(\s*;.*|)$/ : /^\s+(\d+)(\s*;.*|)$/;
+        &give_up("line $i of the SOA record is malformed") if ( $check eq "" );
+    }
 
-	# Calculate the serial number for the first update of
-	# today, allowing for the impending millenium.
+    # Calculate the serial number for the first update of
+    # today, allowing for the impending millenium.
 
-	my ($today_serial) = `date +20%y%m%d01`;
-	$today_serial -= 100000000 if ( substr( $today_serial, 2, 2 ) > 90 );
+    my ($today_serial) = `date +20%y%m%d01`;
+    $today_serial -= 100000000 if ( substr( $today_serial, 2, 2 ) > 90 );
 
-	# remove possible trailing newline (FreeBSD > 3.x ) [CWF]
-	$today_serial =~ s/\n//;
+    # remove possible trailing newline (FreeBSD > 3.x ) [CWF]
+    $today_serial =~ s/\n//;
 
-	# If the existing serial number is already >= today's
-	# start, increment it by one. Otherwise use today's start.
+    # If the existing serial number is already >= today's
+    # start, increment it by one. Otherwise use today's start.
 
-	$value = ( $value >= $today_serial ) ? $value + 1 : $today_serial;
+    $value = ( $value >= $today_serial ) ? $value + 1 : $today_serial;
 
-	# Re-write the start of the second record with the new serial number.
+    # Re-write the start of the second record with the new serial number.
 
-	seek( SOURCE, $pos, 0 );
-	print SOURCE "$indent$value";
-	close SOURCE;
+    seek( SOURCE, $pos, 0 );
+    print SOURCE "$indent$value";
+    close SOURCE;
 }
 
 ##################################################
@@ -1105,12 +1199,12 @@ sub update_serial {
 ##################################################
 
 sub handle_comment {
-	if (/^;F /) {
-		&print_forward( "; " . substr( $_, 3 ) );
-	}
-	elsif (/^;R /) {
-		&print_reverse( "; " . substr( $_, 3 ) );
-	}
+    if (/^;F /) {
+        &print_forward( "; " . substr( $_, 3 ) );
+    }
+    elsif (/^;R /) {
+        &print_reverse( "; " . substr( $_, 3 ) );
+    }
 }
 
 ##################################################
@@ -1118,8 +1212,8 @@ sub handle_comment {
 ##################################################
 
 sub check_fqn {
-	&error("$_[1] record must point to a valid, fully qualified name.")
-	  if ( $_[0] !~ /^[a-zA-Z\d][a-zA-Z\d\-]*(\.[a-zA-Z\d][a-zA-z\d\-]*)*\.$/ );
+    &error("$_[1] record must point to a valid, fully qualified name.")
+      if ( $_[0] !~ /^[a-zA-Z\d][a-zA-Z\d\-]*(\.[a-zA-Z\d][a-zA-z\d\-]*)*\.$/ );
 }
 
 ##################################################
@@ -1166,7 +1260,8 @@ my $lastwaserror;
 my $default_zone = 0;
 
 sub handle_record {
-	my $forwards_only = my $reverse_only = my $external_net = my $multiple = my $ifndef = 0;
+    my $forwards_only = my $reverse_only = my $external_net = my $multiple =
+      my $ifndef = 0;
 
    # If the record starts with ">E ", ">F ", ">M ", ">N " or ">R " set flags for
    # later checks once the type of record is known, and remove these characters.
@@ -1174,711 +1269,788 @@ sub handle_record {
    # followed by a tab, this must be interpreted as if it were several spaces;
    # the right thing happens if the tab is not removed.
 
-	my $flags = "";
-	my $rest = $_;
-	if ($rest =~ s/^>([A-Z]*)(?=\s) ?//) {
-		$flags = $1;
-	}
-	if ($flags =~ /E/) {
-		$forwards_only = $external_net = 1;
-	}
-	if ($flags =~ /F/) {
-		$forwards_only = 1;
-	}
-	if ($flags =~ /M/) {
-		$multiple = 1;
-	}
-	if ($flags =~ /N/) {
-		$ifndef = 1;
-	}
-	if ($flags =~ /R/) {
-		$reverse_only = 1;
-	}
-	if ($flags =~ /Z/ and $rest eq "") {
-		undef $default_zone;
-		return;
-	}
-	if ($flags =~ /Z/ and $rest =~ /^\s*(.*)/) {
-		my $name = $1;
-		if ( defined(my $i = [grep { $name eq $zone[$_]{name} } 0..scalar @zone-1]->[0]) ) {
-			$default_zone = $i;
-		} else {
-			&error("Unknown zone $name.");
-		}
-		return;
-	}
+    my $flags = "";
+    my $rest  = $_;
+    if ( $rest =~ s/^>([A-Z]*)(?=\s) ?// ) {
+        $flags = $1;
+    }
+    if ( $flags =~ /E/ ) {
+        $forwards_only = $external_net = 1;
+    }
+    if ( $flags =~ /F/ ) {
+        $forwards_only = 1;
+    }
+    if ( $flags =~ /M/ ) {
+        $multiple = 1;
+    }
+    if ( $flags =~ /N/ ) {
+        $ifndef = 1;
+    }
+    if ( $flags =~ /R/ ) {
+        $reverse_only = 1;
+    }
+    if ( $flags =~ /Z/ and $rest eq "" ) {
+        undef $default_zone;
+        return;
+    }
+    if ( $flags =~ /Z/ and $rest =~ /^\s*(.*)/ ) {
+        my $name = $1;
+        if (
+            defined(
+                my $i =
+                  [ grep { $name eq $zone[$_]{name} } 0 .. scalar @zone - 1 ]
+                  ->[0]
+            )
+          )
+        {
+            $default_zone = $i;
+        }
+        else {
+            &error("Unknown zone $name.");
+        }
+        return;
+    }
 
-	# Split the line into the first field (name) and the rest
-	# of the line. Name is null if the line starts with a space.
-	# In this case, set it to the value from the previous record,
-	# but set the printing name to blanks so it isn't output.
-	# We still use split() in this case, because it gets rid
-	# of the leading spaces on the remainder of the line.
+    # Split the line into the first field (name) and the rest
+    # of the line. Name is null if the line starts with a space.
+    # In this case, set it to the value from the previous record,
+    # but set the printing name to blanks so it isn't output.
+    # We still use split() in this case, because it gets rid
+    # of the leading spaces on the remainder of the line.
 
-	( my $name, $rest ) = split( /\s+/, $rest, 2 );
-	my $printname;
-	if ( $name eq "" ) {
-		$name      = $lastname;
-		$printname = "  ";
-	}
-	else {
-		$printname = $name;
-		$lastname  = $name;
-	}
+    ( my $name, $rest ) = split( /\s+/, $rest, 2 );
+    my $printname;
+    if ( $name eq "" ) {
+        $name      = $lastname;
+        $printname = "  ";
+    }
+    else {
+        $printname = $name;
+        $lastname  = $name;
+    }
 
-	# If $name is null, it means we have hit a record without a name
-	# field at the top of the file. In a zone file this would mean the
-	# name of the zone, but we don't allow this laxness.
+    # If $name is null, it means we have hit a record without a name
+    # field at the top of the file. In a zone file this would mean the
+    # name of the zone, but we don't allow this laxness.
 
-	if ( $name eq "" ) {
-		&error(
-			"missing name on the first record after initial SOA + NS records.");
-		return;
-	}
+    if ( $name eq "" ) {
+        &error(
+            "missing name on the first record after initial SOA + NS records.");
+        return;
+    }
 
-	# Split off the TTL field, if present. It must consist entirely
-	# of digits.
+    # Split off the TTL field, if present. It must consist entirely
+    # of digits.
 
-	my $ttl;
-	if ( $rest =~ /^\d/ ) {
-		( $ttl, $rest ) = split( /\s+/, $rest, 2 );
-		if ( $ttl ne "" && $ttl !~ /^\d+$/ ) {
-			&error("invalid TTL field (not all digits).");
-			return;
-		}
-	}
-	else { $ttl = ""; }
+    my $ttl;
+    if ( $rest =~ /^\d/ ) {
+        ( $ttl, $rest ) = split( /\s+/, $rest, 2 );
+        if ( $ttl ne "" && $ttl !~ /^\d+$/ ) {
+            &error("invalid TTL field (not all digits).");
+            return;
+        }
+    }
+    else { $ttl = ""; }
 
-	# The class field may or may not be present. If not, the rule is to
-	# copy it from the previous record, but we support only the "IN"
-	# class anyway.
+    # The class field may or may not be present. If not, the rule is to
+    # copy it from the previous record, but we support only the "IN"
+    # class anyway.
 
-	( my $class, $rest ) = split( /\s+/, $rest, 2 );
-	my $type;
-	if ( $class eq "IN" ) {
-		( $type, $rest ) = split( /\s+/, $rest, 2 );
-	}
-	else {
-		$type  = $class;
-		$class = "";
-	}
+    ( my $class, $rest ) = split( /\s+/, $rest, 2 );
+    my $type;
+    if ( $class eq "IN" ) {
+        ( $type, $rest ) = split( /\s+/, $rest, 2 );
+    }
+    else {
+        $type  = $class;
+        $class = "";
+    }
 
-	# Forward-only, reverse-only, external, and multiple flags may be
-	# specified only for A records, except that >E may be specified for
-	# WKS records, and >M for PTR records.
+    # Forward-only, reverse-only, external, and multiple flags may be
+    # specified only for A records, except that >E may be specified for
+    # WKS records, and >M for PTR records.
 
-	if ($multiple || $ifndef) {
-		&error(">M or >I may be specified only for type A or type PTR records.")
-		  if ( $type ne "A"
-			&& $type ne "AAAA"
-			&& $type ne "PTR"
-			&& $type ne "SRV" );
-	}
-	elsif ($external_net) {
-		&error(">E may be specified only for type A and WKS records.")
-		  if ( $type ne "A"
-			&& $type ne "AAAA"
-			&& $type ne "WKS"
-			&& $type ne "SRV" );
-	}
-	else {
-		&error(">F and >R may be specified only for type A records.")
-		  if ( ( $forwards_only || $reverse_only )
-			&& $type ne "A"
-			&& $type ne "AAAA" );
-	}
+    if ( $multiple || $ifndef ) {
+        &error(">M or >I may be specified only for type A or type PTR records.")
+          if ( $type ne "A"
+            && $type ne "AAAA"
+            && $type ne "PTR"
+            && $type ne "SRV" );
+    }
+    elsif ($external_net) {
+        &error(">E may be specified only for type A and WKS records.")
+          if ( $type ne "A"
+            && $type ne "AAAA"
+            && $type ne "WKS"
+            && $type ne "SRV" );
+    }
+    else {
+        &error(">F and >R may be specified only for type A records.")
+          if ( ( $forwards_only || $reverse_only )
+            && $type ne "A"
+            && $type ne "AAAA" );
+    }
 
-	# If the name's components all consists of digits, it it taken as a
-	# reversed IP address for inclusion in the reverse zone. Otherwise its
-	# components must match the pattern set in the $name_pattern variable.
-	# It may not end with a dot, as it is a subdomain name. Repeated names
-	# get checked twice, but this isn't a great overhead.
-	#
-	# To allow for exceptions to the general $name_pattern check, we permit
-	# names in double quotes. These are not checked at all.
-	#
-	# We must also allow the name "@" so that people can set up, for example,
-	# MX records for their entire zone, and we allow the first component of
-	# names on MX records to be "*".
+    # If the name's components all consists of digits, it it taken as a
+    # reversed IP address for inclusion in the reverse zone. Otherwise its
+    # components must match the pattern set in the $name_pattern variable.
+    # It may not end with a dot, as it is a subdomain name. Repeated names
+    # get checked twice, but this isn't a great overhead.
+    #
+    # To allow for exceptions to the general $name_pattern check, we permit
+    # names in double quotes. These are not checked at all.
+    #
+    # We must also allow the name "@" so that people can set up, for example,
+    # MX records for their entire zone, and we allow the first component of
+    # names on MX records to be "*".
 
-	my $thiszone_name = $zone[$default_zone]{name};
-	my $thiszone_handle = $zone[$default_zone]{handle};
-	for my $zi(0..@zone-1) {
-		my $zn = $zone[$zi]{name};
-		if($name =~ s/\.\Q$zn\E\.$//) {
-			$thiszone_name = $zn;
-			$thiszone_handle = $zone[$zi]{handle};
-			last;
-		}
-	}
+    my $thiszone_name   = $zone[$default_zone]{name};
+    my $thiszone_handle = $zone[$default_zone]{handle};
+    for my $zi ( 0 .. @zone - 1 ) {
+        my $zn = $zone[$zi]{name};
+        if ( $name =~ s/\.\Q$zn\E\.$// ) {
+            $thiszone_name   = $zn;
+            $thiszone_handle = $zone[$zi]{handle};
+            last;
+        }
+    }
 
-	my $fqdn;
+    my $fqdn;
 
-	if ( $name eq "@" ) {
-		$name = "$thiszone_name.";
-		$printname = $name if ( substr( $printname, 0, 1 ) ne " " );
-	}
-	elsif ( $name =~ /^\*/ ) {
-		if ( $name !~ /^\*(\.$name_pattern)*$/o ) {
-			&error( "invalid wildcard name field\n"
-				  . "** (or other components do not match name pattern)." );
+    if ( $name eq "@" ) {
+        $name = "$thiszone_name.";
+        $printname = $name if ( substr( $printname, 0, 1 ) ne " " );
+    }
+    elsif ( $name =~ /^\*/ ) {
+        if ( $name !~ /^\*(\.$name_pattern)*$/o ) {
+            &error( "invalid wildcard name field\n"
+                  . "** (or other components do not match name pattern)." );
 
-			$name = $lastname = "dummy";    # prevent subsequent errors
-		}
-		elsif ( ( $type ne "MX" ) && ( $all_wildcards == 0 ) ) {
-			&error("wildcard names are permitted only on MX records.");
-			$name = $lastname = "dummy";    # prevent subsequent errors
-		}
-	}
-	elsif ( substr( $name, 0, 1 ) eq "\"" && substr( $name, -1 ) eq "\"" ) {
-		$name = substr( $name, 1, length($name) - 2 );
-		$printname = $name if ( substr( $printname, 0, 1 ) ne " " );
-	}
-	elsif ( $name =~
-		/^\d{1,3}(\.\d{1,3})*\/\d{1,2}$|^\d{1,3}(\/\d{1,2})?(\.\d{1,3})*$|^[0-9a-fA-F:]*(?:\/\d{1,3})?$/ )
-	{
+            $name = $lastname = "dummy";    # prevent subsequent errors
+        }
+        elsif ( ( $type ne "MX" ) && ( $all_wildcards == 0 ) ) {
+            &error("wildcard names are permitted only on MX records.");
+            $name = $lastname = "dummy";    # prevent subsequent errors
+        }
+    }
+    elsif ( substr( $name, 0, 1 ) eq "\"" && substr( $name, -1 ) eq "\"" ) {
+        $name = substr( $name, 1, length($name) - 2 );
+        $printname = $name if ( substr( $printname, 0, 1 ) ne " " );
+    }
+    elsif ( $name =~
+/^\d{1,3}(\.\d{1,3})*\/\d{1,2}$|^\d{1,3}(\/\d{1,2})?(\.\d{1,3})*$|^[0-9a-fA-F:]*(?:\/\d{1,3})?$/
+      )
+    {
 
-		# Just check that this is on a PTR or NS or DUP record - full checking
-		# of the name happens later for PTR & NS records.
-		if ( $type ne "PTR" && $type ne "NS" && $type ne "DUP" ) {
-			&error("invalid name field for this type of record.");
-			$name = $lastname = "dummy";    # prevent subsequent errors
-		}
-		$fqdn = "$name.in-addr.arpa.";
-	}
-	elsif ( $name !~ /^$name_pattern(\.$name_pattern)*$/o ) {
+        # Just check that this is on a PTR or NS or DUP record - full checking
+        # of the name happens later for PTR & NS records.
+        if ( $type ne "PTR" && $type ne "NS" && $type ne "DUP" ) {
+            &error("invalid name field for this type of record.");
+            $name = $lastname = "dummy";    # prevent subsequent errors
+        }
+        $fqdn = "$name.in-addr.arpa.";
+    }
+    elsif ( $name !~ /^$name_pattern(\.$name_pattern)*$/o ) {
 
-		# we ignore name pattern checks for srv and naptr records [CWF]
-		if ( ( $type ne "SRV" ) && ( $type ne "NAPTR" ) ) {
-			&error(
-				"invalid name field (components do not match name pattern).");
-			$name = $lastname = "dummy";    # prevent subsequent errors
-		}
-	}
+        # we ignore name pattern checks for srv and naptr records [CWF]
+        if ( ( $type ne "SRV" ) && ( $type ne "NAPTR" ) ) {
+            &error(
+                "invalid name field (components do not match name pattern).");
+            $name = $lastname = "dummy";    # prevent subsequent errors
+        }
+    }
 
-	if(!defined $fqdn) {
-		if($name =~ /\.$/) {
-			$fqdn = "$name";
-		} else {
-			$fqdn = "$name.$thiszone_name.";
-		}
-	}
+    if ( !defined $fqdn ) {
+        if ( $name =~ /\.$/ ) {
+            $fqdn = "$name";
+        }
+        else {
+            $fqdn = "$name.$thiszone_name.";
+        }
+    }
 
-	# If the name on this record previously appeared on a RESERVE
-	# record, it is an error. Let processing continue, however, to
-	# detect other errors.
+    # If the name on this record previously appeared on a RESERVE
+    # record, it is an error. Let processing continue, however, to
+    # detect other errors.
 
-	if ( $names{"$fqdn"} && $names{"$fqdn"} == $used_reserve ) {
-		&error("$name appeared on a previous RESERVE record.");
-	}
+    if ( $names{"$fqdn"} && $names{"$fqdn"} == $used_reserve ) {
+        &error("$name appeared on a previous RESERVE record.");
+    }
 
-	# If the name on this record, explicit or implied, previously
-	# appeared on a CNAME record, it is an error. Set the value back
-	# to nothing, to prevent multiple complaints.
+    # If the name on this record, explicit or implied, previously
+    # appeared on a CNAME record, it is an error. Set the value back
+    # to nothing, to prevent multiple complaints.
 
-	if ( $names{"$fqdn"} && $names{"$fqdn"} < 0 && $names{"$fqdn"} > $used_dup )
-	{
-		my $temp = -$names{"$fqdn"};
-		&error("$fqdn appears on a previous CNAME record (line $temp).");
-		$names{"$fqdn"} = "";
-	}
+    if ( $names{"$fqdn"} && $names{"$fqdn"} < 0 && $names{"$fqdn"} > $used_dup )
+    {
+        my $temp = -$names{"$fqdn"};
+        &error("$fqdn appears on a previous CNAME record (line $temp).");
+        $names{"$fqdn"} = "";
+    }
 
-	# Now we perform individual check which depend on the
-	# record's type field. We support only the following types:
-	# A, NS, CNAME, PTR, HINFO, MX, TXT, WKS, RP, SRV, and the special
-	# DUP (invented for makezones).
+    # Now we perform individual check which depend on the
+    # record's type field. We support only the following types:
+    # A, NS, CNAME, PTR, HINFO, MX, TXT, WKS, RP, SRV, and the special
+    # DUP (invented for makezones).
 
-	# For all except TXT, we must ignore trailing spaces and anything
-	# following the first semicolon on the line, since that introduces
-	# a comment. This is not quite so simple for TXT, because of the
-	# quotes, so we handle TXT separately.
+    # For all except TXT, we must ignore trailing spaces and anything
+    # following the first semicolon on the line, since that introduces
+    # a comment. This is not quite so simple for TXT, because of the
+    # quotes, so we handle TXT separately.
 
-	# Type TXT - arbitrary descriptive text, enclosed in double quotes
+    # Type TXT - arbitrary descriptive text, enclosed in double quotes
 
-	if ( $type eq "TXT" ) {
-		if ( $rest !~ /^\".*\"\s*(;.*)?$/ ) {
-			&error("malformed TXT record - must use double quotes.");
-		}
-		print $thiszone_handle "$printname  $ttl  $class  TXT  $rest";
-		$names{"$fqdn"} = $used_other if $names{"$fqdn"};
-		return;
-	}
+    if ( $type eq "TXT" ) {
+        if ( $rest !~ /^\".*\"\s*(;.*)?$/ ) {
+            &error("malformed TXT record - must use double quotes.");
+        }
+        print $thiszone_handle "$printname  $ttl  $class  TXT  $rest";
+        $names{"$fqdn"} = $used_other if $names{"$fqdn"};
+        return;
+    }
 
-	# Remove comments and trailing spaces for all other types. This also
-	# removes the trailing newline.
+    # Remove comments and trailing spaces for all other types. This also
+    # removes the trailing newline.
 
-	$rest =~ s/\s*(;.*)?$//;
+    $rest =~ s/\s*(;.*)?$//;
 
-	# make sure newline is really gone  [CWF 13.01.2004]
-	$rest =~ s/\n//;
+    # make sure newline is really gone  [CWF 13.01.2004]
+    $rest =~ s/\n//;
 
-	# Type RESERVE - a locally invented feature to reserve a name for
-	# future use. Complain if the name has been previously used; otherwise
-	# set a value in the names array to reserve it.
+    # Type RESERVE - a locally invented feature to reserve a name for
+    # future use. Complain if the name has been previously used; otherwise
+    # set a value in the names array to reserve it.
 
-	if ( $type eq "RESERVE" ) {
-		&error("malformed RESERVE record (text after RESERVE).")
-		  if $rest !~ /^$/;
-		if ( $names{"$fqdn"} ) {
-			&error("reserved name $name previously used.");
-		}
-		else { $names{"$fqdn"} = $used_reserve; }
-		return;
-	}
+    if ( $type eq "RESERVE" ) {
+        &error("malformed RESERVE record (text after RESERVE).")
+          if $rest !~ /^$/;
+        if ( $names{"$fqdn"} ) {
+            &error("reserved name $name previously used.");
+        }
+        else { $names{"$fqdn"} = $used_reserve; }
+        return;
+    }
 
-	# Type A - host address; the address must be in one of the networks
-	# being processed, unless it was flagged as an external network.
+    # Type A - host address; the address must be in one of the networks
+    # being processed, unless it was flagged as an external network.
 
-	my $do_a = sub {
-		my ($params) = @_;
-		my ($rzone);
-		my (@addr)            = parse_ip($params, $rest);
-		my ($addr_normalized) = format_ip_forward $params, @addr;
+    my $do_a = sub {
+        my ($params) = @_;
+        my ($rzone);
+        my (@addr) = parse_ip( $params, $rest );
+        my ($addr_normalized) = format_ip_forward $params, @addr;
 
-		if($params eq $ipv4_params) {
-			my ($nn)              = $names{"$fqdn"} || 0;
-			if ( $duplicate_name_check && $printname !~ /^\s*$/ && $nn > 0 && !$multiple ) {
-				return
-					if $ifndef;
-				&error( "unexpected duplicate name.\n"
-					  . "** The first occurrence was in line $nn." );
-			}
+        if ( $params eq $ipv4_params ) {
+            my ($nn) = $names{"$fqdn"} || 0;
+            if (   $duplicate_name_check
+                && $printname !~ /^\s*$/
+                && $nn > 0
+                && !$multiple )
+            {
+                return
+                  if $ifndef;
+                &error( "unexpected duplicate name.\n"
+                      . "** The first occurrence was in line $nn." );
+            }
 
-			$names{"$fqdn"} = $nline if !$nn || $nn == $used_other;
+            $names{"$fqdn"} = $nline if !$nn || $nn == $used_other;
 
-			# The loopback address is always treated as external
-			$external_net = $forwards_only = 1
-			  if ( $addr_normalized eq "127.0.0.1" );
-		} else {
-			my ($nn)              = $names_v6{"$fqdn"} || 0;
+            # The loopback address is always treated as external
+            $external_net = $forwards_only = 1
+              if ( $addr_normalized eq "127.0.0.1" );
+        }
+        else {
+            my ($nn) = $names_v6{"$fqdn"} || 0;
 
-			if ( $duplicate_name_check && $printname !~ /^\s*$/ && $nn > 0 && !$multiple ) {
-				return
-					if $ifndef;
-				&error( "unexpected duplicate name.\n"
-					  . "** The first occurrence was in line $nn." );
-			}
+            if (   $duplicate_name_check
+                && $printname !~ /^\s*$/
+                && $nn > 0
+                && !$multiple )
+            {
+                return
+                  if $ifndef;
+                &error( "unexpected duplicate name.\n"
+                      . "** The first occurrence was in line $nn." );
+            }
 
-			$names_v6{"$fqdn"} = $nline      if !$nn;
-			$names{"$fqdn"}    = $used_other if !$names{"$fqdn"};
+            $names_v6{"$fqdn"} = $nline      if !$nn;
+            $names{"$fqdn"}    = $used_other if !$names{"$fqdn"};
 
-			# The loopback address is always treated as external
-			$external_net = $forwards_only = 1
-			  if $addr_normalized eq "0:0:0:0:0:0:0:1";
-		}
+            # The loopback address is always treated as external
+            $external_net = $forwards_only = 1
+              if $addr_normalized eq "0:0:0:0:0:0:0:1";
+        }
 
-		if ( !$forwards_only ) {
-			if ( $addresses{"$addr_normalized"} && !$multiple ) {
-				return
-					if $ifndef;
-				&error(
+        if ( !$forwards_only ) {
+            if ( $addresses{"$addr_normalized"} && !$multiple ) {
+                return
+                  if $ifndef;
+                &error(
 "duplicate IP address $addr_normalized specified for a PTR record.\n"
-					  . "** Use the >M flag if multiple PTR records are required.\n"
-					  . "** The first occurrence was in line $addresses{$addr_normalized}."
-				);
-			}
-		}
+                      . "** Use the >M flag if multiple PTR records are required.\n"
+                      . "** The first occurrence was in line $addresses{$addr_normalized}."
+                );
+            }
+        }
 
-		# Check known network (& find network) unless external
+        # Check known network (& find network) unless external
 
-		if ( !$external_net ) {
-			$rzone = &find_zone_ip( $params, 0, @addr );
+        if ( !$external_net ) {
+            $rzone = &find_zone_ip( $params, 0, @addr );
 
-			if ( $rzone >= scalar @{$params->{rzone}} ) {
-				&error("IP address is not in a known network (use >E for externals)."
-				);
-				return;
-			}
-		}
+            if ( $rzone >= scalar @{ $params->{rzone} } ) {
+                &error(
+"IP address is not in a known network (use >E for externals)."
+                );
+                return;
+            }
+        }
 
-		# Output the A record to the forward file, unless reverse-only record.
+        # Output the A record to the forward file, unless reverse-only record.
 
-		print $thiszone_handle "$printname  $ttl  $class  $params->{recordtype}  $addr_normalized\n"
-			if !$reverse_only;
+        print $thiszone_handle
+          "$printname  $ttl  $class  $params->{recordtype}  $addr_normalized\n"
+          if !$reverse_only;
 
-		# If required, generate a PTR record for the reverse file. Check for
-		# multiples, and complain unless the record is flagged as such.
+        # If required, generate a PTR record for the reverse file. Check for
+        # multiples, and complain unless the record is flagged as such.
 
-		if ( !$forwards_only ) {
-			# modified to support CIDR-Style networks
-			my ($handle) = $params->{rzone}[$rzone]{handle};
-			print $handle format_ip_reverse_inzone($params, \@addr, $params->{words} * $params->{bits}, $params->{rzone}[$rzone]{prefix}, int($params->{rzone}[$rzone]{prefixlen} / $params->{revbits}) * $params->{revbits});
-			print $handle "  $ttl  $class  PTR  $name";
-			print $handle ".$thiszone_name."
-			  if ( substr( $name, -1, 1 ) ne "." );
-			print $handle "\n";
-			$addresses{"$addr_normalized"} = $nline
-			  if !$addresses{"$addr_normalized"};
-		}
-	};
+        if ( !$forwards_only ) {
 
-	if ( $type eq "A" ) {
-		$do_a->($ipv4_params);
-		return;
-	}
+            # modified to support CIDR-Style networks
+            my ($handle) = $params->{rzone}[$rzone]{handle};
+            print $handle format_ip_reverse_inzone(
+                $params,
+                \@addr,
+                $params->{words} * $params->{bits},
+                $params->{rzone}[$rzone]{prefix},
+                int( $params->{rzone}[$rzone]{prefixlen} / $params->{revbits} )
+                  * $params->{revbits}
+            );
+            print $handle "  $ttl  $class  PTR  $name";
+            print $handle ".$thiszone_name."
+              if ( substr( $name, -1, 1 ) ne "." );
+            print $handle "\n";
+            $addresses{"$addr_normalized"} = $nline
+              if !$addresses{"$addr_normalized"};
+        }
+    };
 
-	if ( $type eq "AAAA" ) {
-		$do_a->($ipv6_params);
-		return;
-	}
+    if ( $type eq "A" ) {
+        $do_a->($ipv4_params);
+        return;
+    }
 
-	# Type CNAME - pointer to canonical name. We require the canonical
-	# name to be fully qualified. We also want to check that any name
-	# that is on a CNAME record does not also appear on any other records.
-	# This is done via the %names associative array. If there was a previous
-	# CNAME record, the error message has already been given (and the value
-	# set back to null to prevent another one).
+    if ( $type eq "AAAA" ) {
+        $do_a->($ipv6_params);
+        return;
+    }
 
-	if ( $type eq "CNAME" ) {
-		my ($nn) = $names{"$fqdn"} || 0;
-		&check_fqn( $rest, "CNAME" );
-		if ( $nn == 0 ) {
-			$names{"$fqdn"} = -$nline;
-			print $thiszone_handle "$name  $ttl $class  CNAME  $rest\n";
-		}
-		else {
-			if ( $nn > $used_dup ) {
-				$nn = -$nn if $nn < 0;
-				&error("$name appears on a previous record (line $nn).");
-			}
-			else {
-				&error("$name appears on a previous record.");
-			}
-		}
-		return;
-	}
+    # Type CNAME - pointer to canonical name. We require the canonical
+    # name to be fully qualified. We also want to check that any name
+    # that is on a CNAME record does not also appear on any other records.
+    # This is done via the %names associative array. If there was a previous
+    # CNAME record, the error message has already been given (and the value
+    # set back to null to prevent another one).
 
-	# Type PTR - pointer to entity elsewhere in the DNS; used only
-	# for explicit reverse-lookup entries when the name is not in
-	# this forwards zone. The name must be a complete reversed
-	# IP or IPv6 address.
+    if ( $type eq "CNAME" ) {
+        my ($nn) = $names{"$fqdn"} || 0;
+        &check_fqn( $rest, "CNAME" );
+        if ( $nn == 0 ) {
+            $names{"$fqdn"} = -$nline;
+            print $thiszone_handle "$name  $ttl $class  CNAME  $rest\n";
+        }
+        else {
+            if ( $nn > $used_dup ) {
+                $nn = -$nn if $nn < 0;
+                &error("$name appears on a previous record (line $nn).");
+            }
+            else {
+                &error("$name appears on a previous record.");
+            }
+        }
+        return;
+    }
 
-	if ( $type eq "PTR" ) {
-		my ( $net, $rzone );
-		my ($nn) = $names{"$fqdn"} || 0;
+    # Type PTR - pointer to entity elsewhere in the DNS; used only
+    # for explicit reverse-lookup entries when the name is not in
+    # this forwards zone. The name must be a complete reversed
+    # IP or IPv6 address.
 
-		if ( $duplicate_name_check && $printname !~ /^\s*$/ && $nn > 0 ) {
-			&error( "unexpected duplicate name.\n"
-				  . "** The first occurrence was in line $nn." );
-		}
+    if ( $type eq "PTR" ) {
+        my ( $net, $rzone );
+        my ($nn) = $names{"$fqdn"} || 0;
 
-		$names{"$fqdn"} = $nline if !$nn || $nn == $used_other;
+        if ( $duplicate_name_check && $printname !~ /^\s*$/ && $nn > 0 ) {
+            &error( "unexpected duplicate name.\n"
+                  . "** The first occurrence was in line $nn." );
+        }
 
-		my $do_ptr = sub {
-			my ($params, $name, $rest) = @_;
-			my @addr = parse_ip $params, $name;
-			my ($addr_normalized) = format_ip_forward $params, @addr;
+        $names{"$fqdn"} = $nline if !$nn || $nn == $used_other;
 
-			&check_fqn( $rest, "PTR" );
+        my $do_ptr = sub {
+            my ( $params, $name, $rest ) = @_;
+            my @addr = parse_ip $params, $name;
+            my ($addr_normalized) = format_ip_forward $params, @addr;
 
-			$rzone = &find_zone_ip( $params, 0, @addr );
+            &check_fqn( $rest, "PTR" );
 
-			if ( $rzone >= scalar @{$params->{rzone}} ) {
-				&error("wrong PTR: $net is not part of a known network.");
-			}
-			else {
-				my $thisaddress = $addr_normalized;
-				if ( $addresses{"$thisaddress"} && !$multiple ) {
-					return
-						if $ifndef;
-					&error(     "duplicate IP address $thisaddress specified for a PTR record.\n"
-						  . "** Use the >M flag if multiple PTR records are required.\n"
-						  . "** The first occurrence was in line $addresses{$thisaddress}."
-					);
-				}
-				else {
-					my ($handle) = $params->{rzone}[$rzone]{handle};
-					print $handle format_ip_reverse_inzone($params, \@addr, $params->{words} * $params->{bits}, $params->{rzone}[$rzone]{prefix}, $params->{rzone}[$rzone]{prefixlen});
-					print $handle "  $ttl  $class  PTR  $rest";
-					print $handle ".$thiszone_name."
-					  if ( substr( $rest, -1, 1 ) ne "." );
-					print $handle "\n";
-					$addresses{"$thisaddress"} = $nline
-					  if !$addresses{"$thisaddress"};
-				}
-			}
-		};
+            $rzone = &find_zone_ip( $params, 0, @addr );
 
-		if ( $name =~ /:/ )    # IPv6
-		{
-			$do_ptr->($ipv6_params, $name, $rest);
-		}
-		else
-		{
-			$do_ptr->($ipv4_params, $name, $rest);
-		}
+            if ( $rzone >= scalar @{ $params->{rzone} } ) {
+                &error("wrong PTR: $net is not part of a known network.");
+            }
+            else {
+                my $thisaddress = $addr_normalized;
+                if ( $addresses{"$thisaddress"} && !$multiple ) {
+                    return
+                      if $ifndef;
+                    &error(
+"duplicate IP address $thisaddress specified for a PTR record.\n"
+                          . "** Use the >M flag if multiple PTR records are required.\n"
+                          . "** The first occurrence was in line $addresses{$thisaddress}."
+                    );
+                }
+                else {
+                    my ($handle) = $params->{rzone}[$rzone]{handle};
+                    print $handle format_ip_reverse_inzone(
+                        $params,
+                        \@addr,
+                        $params->{words} * $params->{bits},
+                        $params->{rzone}[$rzone]{prefix},
+                        $params->{rzone}[$rzone]{prefixlen}
+                    );
+                    print $handle "  $ttl  $class  PTR  $rest";
+                    print $handle ".$thiszone_name."
+                      if ( substr( $rest, -1, 1 ) ne "." );
+                    print $handle "\n";
+                    $addresses{"$thisaddress"} = $nline
+                      if !$addresses{"$thisaddress"};
+                }
+            }
+        };
 
-		return;
-	}
+        if ( $name =~ /:/ )    # IPv6
+        {
+            $do_ptr->( $ipv6_params, $name, $rest );
+        }
+        else {
+            $do_ptr->( $ipv4_params, $name, $rest );
+        }
 
-	# Type DUP - a pseudo record invented for use by makezones,
-	# specifying that the name is permitted to be duplicated on
-	# A and PTR records. If this name appeared on a previous CNAME,
-	# an error will already have been given. Further errors might
-	# occur whether or not we override, so take the easy line.
+        return;
+    }
 
-	if ( $type eq "DUP" ) {
-		&error("malformed DUP record (text after DUP).") if $rest !~ /^$/;
-		$names{"$fqdn"} = $used_dup;
-		return;
-	}
+    # Type DUP - a pseudo record invented for use by makezones,
+    # specifying that the name is permitted to be duplicated on
+    # A and PTR records. If this name appeared on a previous CNAME,
+    # an error will already have been given. Further errors might
+    # occur whether or not we override, so take the easy line.
 
-	# The remaining record types are classified as "other" for the
-	# purpose of remembering which names have been used. This is
-	# purely for the CNAME check. If no type is set, set the conv-
-	# entional value. This may be overridden by subsequent records
-	# such as A or PTR.
+    if ( $type eq "DUP" ) {
+        &error("malformed DUP record (text after DUP).") if $rest !~ /^$/;
+        $names{"$fqdn"} = $used_dup;
+        return;
+    }
 
-	$names{"$fqdn"} = $used_other if !$names{"$fqdn"};
+    # The remaining record types are classified as "other" for the
+    # purpose of remembering which names have been used. This is
+    # purely for the CNAME check. If no type is set, set the conv-
+    # entional value. This may be overridden by subsequent records
+    # such as A or PTR.
 
-	# Type SRV -- right now we just copy it to output [CWF]
+    $names{"$fqdn"} = $used_other if !$names{"$fqdn"};
 
-	if ( $type eq "SRV" ) {
-		print $thiszone_handle "$name  $ttl $class  SRV  $rest\n";
-		return;
-	}
+    # Type SRV -- right now we just copy it to output [CWF]
 
-	# Type NAPTR -- right now we just copy it to output as well [CWF - AUG 04]
+    if ( $type eq "SRV" ) {
+        print $thiszone_handle "$name  $ttl $class  SRV  $rest\n";
+        return;
+    }
 
-	if ( $type eq "NAPTR" ) {
-		print $thiszone_handle "$name  $ttl $class  NAPTR  $rest\n";
-		return;
-	}
+    # Type NAPTR -- right now we just copy it to output as well [CWF - AUG 04]
 
-	# Type NS - identity of nameserver. As the zone's nameserver records were
-	# processed at the top of the file, these are NS records for devolved sub-
-	# zones. Check that the name is fully qualified (ends with dot).
-	# Special handling for CIDR delegation zones of the form
-	# $d/$e.$c.%b.$a.IN-ADDR.ARPA is added here. The form of the
-	# Record for Reverse delegations is nor documented in the comments.
-	#
-	# therefore there are now three 'legal' forms of subnet delegation
-	# NS records:
-	#           $b.$a	IN	NS	xxxx
-	#        $c.$b.$a	IN	NS	xxxx
-	#  $d/$e.$c.$b.$a	IN	NS	xxxx
+    if ( $type eq "NAPTR" ) {
+        print $thiszone_handle "$name  $ttl $class  NAPTR  $rest\n";
+        return;
+    }
 
-	if ( $type eq "NS" ) {
-		&check_fqn( $rest, "NS" );
+    # Type NS - identity of nameserver. As the zone's nameserver records were
+    # processed at the top of the file, these are NS records for devolved sub-
+    # zones. Check that the name is fully qualified (ends with dot).
+    # Special handling for CIDR delegation zones of the form
+    # $d/$e.$c.%b.$a.IN-ADDR.ARPA is added here. The form of the
+    # Record for Reverse delegations is nor documented in the comments.
+    #
+    # therefore there are now three 'legal' forms of subnet delegation
+    # NS records:
+    #           $b.$a	IN	NS	xxxx
+    #        $c.$b.$a	IN	NS	xxxx
+    #  $d/$e.$c.$b.$a	IN	NS	xxxx
 
-		# If the name starts with a digit, it must be the reversed address of
-		# a devolved sub-zone of a Class A or Class B network.
+    if ( $type eq "NS" ) {
+        &check_fqn( $rest, "NS" );
 
-		my $do_ns = sub {
-			my ($params, $addr, $prefixlen) = @_;
+        # If the name starts with a digit, it must be the reversed address of
+        # a devolved sub-zone of a Class A or Class B network.
 
-			my ( $net, $rzone, $r_e );
-			my ($cidr_extension) = 1;
-			my @addr = parse_ip $params, $addr;
+        my $do_ns = sub {
+            my ( $params, $addr, $prefixlen ) = @_;
 
-			if($prefixlen % $params->{revbits} == 0) {
-				$cidr_extension = 0;
-			}
+            my ( $net, $rzone, $r_e );
+            my ($cidr_extension) = 1;
+            my @addr = parse_ip $params, $addr;
 
-			$rzone = &find_zone_ip( $params, 1, @addr );
+            if ( $prefixlen % $params->{revbits} == 0 ) {
+                $cidr_extension = 0;
+            }
 
-			if ( $rzone >= scalar @{$params->{rzone}} ) {
-				&error("$addr/$prefixlen is not a subnet of a known network.");
-			} elsif ($cidr_extension && $prefixlen < $params->{words} * $params->{bits} - $params->{revbits}) { # multi NS
-				my ($handle) = $params->{rzone}[$rzone]{handle};
-				my @subnet_list = list_ip_noncidr $params, \@addr, $prefixlen;
-				for(@subnet_list) {
-					my $subnet = format_ip_reverse_inzone($params, $_->[0], $_->[1], $params->{rzone}[$rzone]{prefix}, $params->{rzone}[$rzone]{prefixlen});
-					print $handle "$subnet  $ttl  $class  NS  $rest\n";
-				}
-			} elsif ($cidr_extension) { # CNAME hack
-				my ($handle) = $params->{rzone}[$rzone]{handle};
-				my @subnet_list = list_ip_noncidr $params, \@addr, $prefixlen;
-				my $supernet = format_ip_reverse_inzone($params, $subnet_list[0]->[0], $subnet_list[0]->[1], [(0) x $params->{words}], 0);
-				my $supersubnet = format_ip_reverse_inzone($params, $subnet_list[0]->[0], $subnet_list[0]->[1], $params->{rzone}[$rzone]{prefix}, $params->{rzone}[$rzone]{prefixlen});
-				print $handle cname_hack $supersubnet, $prefixlen;
-				print $handle "  $ttl  $class  NS  $rest\n";
-				my $chack = cname_hack $supernet, $prefixlen;
-				if(!$done_cidr_hack{$chack}++) {
-					for(@subnet_list) {
-						my $subnet = format_ip_reverse_inzone($params, $_->[0], $_->[1], $params->{rzone}[$rzone]{prefix}, $params->{rzone}[$rzone]{prefixlen});
-						$subnet =~ /^([^.]+)/;
-						my $subnet_name = "$1.$chack";
-						print $handle "$subnet  $ttl  $class  CNAME  $subnet_name$params->{suffix}.\n";
-					}
-				}
-			} else {
-				my ($handle) = $params->{rzone}[$rzone]{handle};
-				my $subnet = format_ip_reverse_inzone($params, \@addr, $prefixlen, $params->{rzone}[$rzone]{prefix}, $params->{rzone}[$rzone]{prefixlen});
-				print $handle "$subnet  $ttl  $class  NS  $rest\n";
-			}
-		};
+            $rzone = &find_zone_ip( $params, 1, @addr );
 
-		if ( $name =~ /(.*:.*)\/(.*)/ ) {
-			$do_ns->($ipv6_params, $1, $2);
-		}
-		elsif($name =~ /^(\d+)(?:\.(\d+)(?:\.(\d+)(?:\.(\d+))?)?)?(?:\/(\d+))?$|^(\d+)\/(\d+)\.(\d+)\.(\d+)\.(\d+)$/) {
-			my ($a, $b, $c, $d, $prefixlen) =
-				$1
-					? ($1, $2||0, $3||0, $4||0, $5 || (defined $4 ? 32 : defined $3 ? 24 : defined $2 ? 16 : 8))
-					: ($10, $9, $8, $6, $7);
-			$do_ns->($ipv4_params, "$a.$b.$c.$d", $prefixlen);
-		}
+            if ( $rzone >= scalar @{ $params->{rzone} } ) {
+                &error("$addr/$prefixlen is not a subnet of a known network.");
+            }
+            elsif ($cidr_extension
+                && $prefixlen <
+                $params->{words} * $params->{bits} - $params->{revbits} )
+            {    # multi NS
+                my ($handle) = $params->{rzone}[$rzone]{handle};
+                my @subnet_list = list_ip_noncidr $params, \@addr, $prefixlen;
+                for (@subnet_list) {
+                    my $subnet = format_ip_reverse_inzone(
+                        $params, $_->[0], $_->[1],
+                        $params->{rzone}[$rzone]{prefix},
+                        $params->{rzone}[$rzone]{prefixlen}
+                    );
+                    print $handle "$subnet  $ttl  $class  NS  $rest\n";
+                }
+            }
+            elsif ($cidr_extension) {    # CNAME hack
+                my ($handle) = $params->{rzone}[$rzone]{handle};
+                my @subnet_list = list_ip_noncidr $params, \@addr, $prefixlen;
+                my $supernet = format_ip_reverse_inzone(
+                    $params,
+                    $subnet_list[0]->[0],
+                    $subnet_list[0]->[1],
+                    [ (0) x $params->{words} ], 0
+                );
+                my $supersubnet = format_ip_reverse_inzone(
+                    $params,
+                    $subnet_list[0]->[0],
+                    $subnet_list[0]->[1],
+                    $params->{rzone}[$rzone]{prefix},
+                    $params->{rzone}[$rzone]{prefixlen}
+                );
+                print $handle cname_hack $supersubnet, $prefixlen;
+                print $handle "  $ttl  $class  NS  $rest\n";
+                my $chack = cname_hack $supernet, $prefixlen;
+                if ( !$done_cidr_hack{$chack}++ ) {
 
-		# Otherwise this is a devolution from the main forwards zone
+                    for (@subnet_list) {
+                        my $subnet = format_ip_reverse_inzone(
+                            $params, $_->[0], $_->[1],
+                            $params->{rzone}[$rzone]{prefix},
+                            $params->{rzone}[$rzone]{prefixlen}
+                        );
+                        $subnet =~ /^([^.]+)/;
+                        my $subnet_name = "$1.$chack";
+                        print $handle
+"$subnet  $ttl  $class  CNAME  $subnet_name$params->{suffix}.\n";
+                    }
+                }
+            }
+            else {
+                my ($handle) = $params->{rzone}[$rzone]{handle};
+                my $subnet = format_ip_reverse_inzone(
+                    $params, \@addr, $prefixlen,
+                    $params->{rzone}[$rzone]{prefix},
+                    $params->{rzone}[$rzone]{prefixlen}
+                );
+                print $handle "$subnet  $ttl  $class  NS  $rest\n";
+            }
+        };
 
-		else { print $thiszone_handle "$printname  $ttl  $class  NS  $rest\n"; }
-		return;
-	}
+        if ( $name =~ /(.*:.*)\/(.*)/ ) {
+            $do_ns->( $ipv6_params, $1, $2 );
+        }
+        elsif ( $name =~
+/^(\d+)(?:\.(\d+)(?:\.(\d+)(?:\.(\d+))?)?)?(?:\/(\d+))?$|^(\d+)\/(\d+)\.(\d+)\.(\d+)\.(\d+)$/
+          )
+        {
+            my ( $a, $b, $c, $d, $prefixlen ) =
+              $1
+              ? (
+                $1,
+                $2 || 0,
+                $3 || 0,
+                $4 || 0,
+                $5
+                  || ( defined $4 ? 32 : defined $3 ? 24 : defined $2 ? 16 : 8 )
+              )
+              : ( $10, $9, $8, $6, $7 );
+            $do_ns->( $ipv4_params, "$a.$b.$c.$d", $prefixlen );
+        }
 
-	# Type HINFO - host information; no further checking
+        # Otherwise this is a devolution from the main forwards zone
 
-	if ( $type eq "HINFO" ) {
-		print $thiszone_handle "$printname  $ttl  $class  HINFO  $rest\n";
-		return;
-	}
+        else { print $thiszone_handle "$printname  $ttl  $class  NS  $rest\n"; }
+        return;
+    }
 
-	# Type MX - mail exchanger; there must be a preference and
-	# a fully-qualified gateway name.
+    # Type HINFO - host information; no further checking
 
-	if ( $type eq "MX" ) {
-		my ( $pref, $gateway ) = split( /\s+/, $rest, 2 );
-		&check_fqn( $gateway, "MX" );
-		if ( $pref !~ /^\d+$/ ) {
-			&error("invalid MX preference field (not all digits).");
-		}
-		print $thiszone_handle "$printname  $ttl  $class  MX  $pref  $gateway\n";
-		return;
-	}
+    if ( $type eq "HINFO" ) {
+        print $thiszone_handle "$printname  $ttl  $class  HINFO  $rest\n";
+        return;
+    }
 
-	# Type WKS - well-known services. This commonly is continued onto
-	# other lines, so we must handle continuations. Check the protocol
-	# field is either TCP or UDP, then check all the services appear
-	# in the $services file, if it is set (typically /etc/services).
-	# Check the address is in a known network, unless external.
+    # Type MX - mail exchanger; there must be a preference and
+    # a fully-qualified gateway name.
 
-	if ( $type eq "WKS" ) {
-		my ( $address, $proto, $rest ) = split( /\s+/, $rest, 3 );
+    if ( $type eq "MX" ) {
+        my ( $pref, $gateway ) = split( /\s+/, $rest, 2 );
+        &check_fqn( $gateway, "MX" );
+        if ( $pref !~ /^\d+$/ ) {
+            &error("invalid MX preference field (not all digits).");
+        }
+        print $thiszone_handle
+          "$printname  $ttl  $class  MX  $pref  $gateway\n";
+        return;
+    }
 
-		# Check the address
+    # Type WKS - well-known services. This commonly is continued onto
+    # other lines, so we must handle continuations. Check the protocol
+    # field is either TCP or UDP, then check all the services appear
+    # in the $services file, if it is set (typically /etc/services).
+    # Check the address is in a known network, unless external.
 
-		if ( !$external_net ) {
-			my ( $a, $b, $c, $d ) =
-			  $address =~ /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+    if ( $type eq "WKS" ) {
+        my ( $address, $proto, $rest ) = split( /\s+/, $rest, 3 );
 
-			if ( $a eq "" ) {
-				&error("IP address on WKS record is incomplete");
-				return;
-			}
+        # Check the address
 
-			if ( $a > 255 || $b > 255 || $c > 255 || $d > 255 ) {
-				&error(
-					"IP address contains component with value greater than 255."
-				);
-				return;
-			}
+        if ( !$external_net ) {
+            my ( $a, $b, $c, $d ) =
+              $address =~ /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
 
-			my $net = ( $a << 24 ) | ( $b << 16 ) | ( $c << 8 ) | $d;
+            if ( $a eq "" ) {
+                &error("IP address on WKS record is incomplete");
+                return;
+            }
+
+            if ( $a > 255 || $b > 255 || $c > 255 || $d > 255 ) {
+                &error(
+                    "IP address contains component with value greater than 255."
+                );
+                return;
+            }
+
+            my $net = ( $a << 24 ) | ( $b << 16 ) | ( $c << 8 ) | $d;
 
 # NOTE: WKS records do not support IPv6 and are deprecated. So no v6 support here.
-			my $rzone = &find_zone($net);
+            my $rzone = &find_zone($net);
 
-			if ( $rzone >= scalar @rzone ) {
-				&error("$net is not a known network.");
-			}
-		}
+            if ( $rzone >= scalar @rzone ) {
+                &error("$net is not a known network.");
+            }
+        }
 
-		# Check the protocol
+        # Check the protocol
 
-		if ( $proto ne "UDP" && $proto ne "TCP" ) {
-			&error("protocol in WKS record must be \"UCP\" or \"TCP\".");
-		}
+        if ( $proto ne "UDP" && $proto ne "TCP" ) {
+            &error("protocol in WKS record must be \"UCP\" or \"TCP\".");
+        }
 
-		# Start of line prefix - the rest of the line is in $rest
+        # Start of line prefix - the rest of the line is in $rest
 
-		my $pref = "$printname  $ttl  $class  WKS  $address $proto";
+        my $pref = "$printname  $ttl  $class  WKS  $address $proto";
 
-		# Allow continuation bracket at start of list only
+        # Allow continuation bracket at start of list only
 
-		my $continued;
-		my $list;
-		if ( substr( $rest, 0, 1 ) eq "(" ) {
-			$continued = 1;
-			($list) = $rest =~ /^\(\s*(.+)$/;
-		}
-		else { $continued = 0; $list = $rest; }
+        my $continued;
+        my $list;
+        if ( substr( $rest, 0, 1 ) eq "(" ) {
+            $continued = 1;
+            ($list) = $rest =~ /^\(\s*(.+)$/;
+        }
+        else { $continued = 0; $list = $rest; }
 
-		# Loop for handling continuation records
+        # Loop for handling continuation records
 
-		for ( ; ; ) {
-			while ( substr( $list, -1 ) eq "\n" ) { chop($list); }
-			while ( substr( $list, -1 ) eq " " )  { chop($list); }
+        for ( ; ; ) {
+            while ( substr( $list, -1 ) eq "\n" ) { chop($list); }
+            while ( substr( $list, -1 ) eq " " )  { chop($list); }
 
-			# Loop for scanning the list of services
+            # Loop for scanning the list of services
 
-			while ( $list ne "" ) {
-				my $servicename;
-				if ( index( $list, " " ) >= 0 ) {
-					( $servicename, $list ) = split( /\s+/, $list, 2 );
-				}
-				else {
-					$servicename = $list;
-					$list        = "";
+            while ( $list ne "" ) {
+                my $servicename;
+                if ( index( $list, " " ) >= 0 ) {
+                    ( $servicename, $list ) = split( /\s+/, $list, 2 );
+                }
+                else {
+                    $servicename = $list;
+                    $list        = "";
 
-				   # Check for closing bracket at end of line. It may or may not
-				   # be preceded by a space.
+                   # Check for closing bracket at end of line. It may or may not
+                   # be preceded by a space.
 
-					if ( $continued && substr( $servicename, -1 ) eq ")" ) {
-						chop($servicename);
-						$continued = 0;
-					}
-				}
+                    if ( $continued && substr( $servicename, -1 ) eq ")" ) {
+                        chop($servicename);
+                        $continued = 0;
+                    }
+                }
 
-				# Check the service if required. $servicename can be empty if
-				# a closing bracket is preceded by a space.
+                # Check the service if required. $servicename can be empty if
+                # a closing bracket is preceded by a space.
 
-				if ( "$services" ne "" && $servicename ne "" ) {
-					if (
-						system(
-							"$grep \'^$servicename\[ \t]\' $services >/dev/null"
-						) / 256
-					  )
-					{
-						&error("\"$servicename\" does not appear in $services");
-					}
-				}
-			}
+                if ( "$services" ne "" && $servicename ne "" ) {
+                    if (
+                        system(
+                            "$grep \'^$servicename\[ \t]\' $services >/dev/null"
+                        ) / 256
+                      )
+                    {
+                        &error("\"$servicename\" does not appear in $services");
+                    }
+                }
+            }
 
-			print $thiszone_handle "$pref  $rest\n";
-			return if !$continued;
+            print $thiszone_handle "$pref  $rest\n";
+            return if !$continued;
 
-			# Read in the next line, which contains more services, for the
-			# next time round this loop.
+            # Read in the next line, which contains more services, for the
+            # next time round this loop.
 
-			$_ = <SOURCE>;
-			$nline++;
-			( $list, my $dummy ) = $_ =~ /^\s*([^;]+)(;.*)?$/;
-			$rest = "$list";
-			$pref = "  ";
-		}
-	}
+            $_ = <SOURCE>;
+            $nline++;
+            ( $list, my $dummy ) = $_ =~ /^\s*([^;]+)(;.*)?$/;
+            $rest = "$list";
+            $pref = "  ";
+        }
+    }
 
-	# Type RP (Responsible Person) - two domain names
+    # Type RP (Responsible Person) - two domain names
 
-	if ( $type eq "RP" ) {
-		if ( $rest !~ /^\S+\s+\S+$/ ) {
-			&error("malformed RP record - two fields required.");
-		}
-		print $thiszone_handle "$printname  $ttl  $class  RP  $rest\n";
-		return;
-	}
+    if ( $type eq "RP" ) {
+        if ( $rest !~ /^\S+\s+\S+$/ ) {
+            &error("malformed RP record - two fields required.");
+        }
+        print $thiszone_handle "$printname  $ttl  $class  RP  $rest\n";
+        return;
+    }
 
-	# other type
+    # other type
 
-	if ( $type =~ /^[A-Z0-9]*$/ ) {
-		warn "Unknown record type $type handled";
-		print $thiszone_handle "$printname  $ttl  $class  $type  $rest\n";
-		return;
-	}
+    if ( $type =~ /^[A-Z0-9]*$/ ) {
+        warn "Unknown record type $type handled";
+        print $thiszone_handle "$printname  $ttl  $class  $type  $rest\n";
+        return;
+    }
 
-	# Else we have a bad record
+    # Else we have a bad record
 
-	&error("unknown record type $type.");
+    &error("unknown record type $type.");
 }
 
 ##################################################
@@ -1886,145 +2058,175 @@ sub handle_record {
 ##################################################
 
 sub generate_zones {
-	my ($i);
+    my ($i);
 
-	$lastname = "";
-	$nline    = 0;
+    $lastname = "";
+    $nline    = 0;
 
-	print "Generating the zone data...\n" if $chatty;
+    print "Generating the zone data...\n" if $chatty;
 
-	# Open the input file
+    # Open the input file
 
-	open( SOURCE, "$source_file" )
-	  || &give_up("unable to open $source_file");
+    open( SOURCE, "$source_file" )
+      || &give_up("unable to open $source_file");
 
-	# Open the output files
+    # Open the output files
 
-	for ( $i = 0 ; $i < scalar @zone ; $i++ ) {
-		open( $zone[$i]{handle}, ">$zone[$i]{file}.new" )
-		  || &give_up("unable to open $zone[$i]{file}.new");
-	}
+    for ( $i = 0 ; $i < scalar @zone ; $i++ ) {
+        open( $zone[$i]{handle}, ">$zone[$i]{file}.new" )
+          || &give_up("unable to open $zone[$i]{file}.new");
+    }
 
-	for ( $i = 0 ; $i < scalar @rzone ; $i++ ) {
-		open( $rzone[$i]{handle}, ">$rzone[$i]{file}.new" )
-		  || &give_up("unable to open $rzone[$i]{file}.new");
-	}
+    for ( $i = 0 ; $i < scalar @rzone ; $i++ ) {
+        open( $rzone[$i]{handle}, ">$rzone[$i]{file}.new" )
+          || &give_up("unable to open $rzone[$i]{file}.new");
+    }
 
-	for ( $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
-		open( $rzone6[$i]{handle}, ">$rzone6[$i]{file}.new" )
-		  || &give_up("unable to open $rzone6[$i]{file}.new");
-	}
+    for ( $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
+        open( $rzone6[$i]{handle}, ">$rzone6[$i]{file}.new" )
+          || &give_up("unable to open $rzone6[$i]{file}.new");
+    }
 
-	# Copy the SOA record into all the output files
+    # Copy the SOA record into all the output files
 
-	for ( $nline = 1 ; $nline <= $soa_count ; $nline++ ) {
-		$_ = <SOURCE>;
-		&print_forward($_);
-		&print_reverse($_);
-	}
+    for ( $nline = 1 ; $nline <= $soa_count ; $nline++ ) {
+        $_ = <SOURCE>;
+        &print_forward($_);
+        &print_reverse($_);
+    }
 
-	# Record the fact that the name "@" has been used, for a record
-	# of type "other". This will stop a CNAME of that name.
+    # Record the fact that the name "@" has been used, for a record
+    # of type "other". This will stop a CNAME of that name.
 
-	$names{"$_."} = $used_other
-		for map { $_->{name} } @zone;
+    $names{"$_."} = $used_other for map { $_->{name} } @zone;
 
-	# Copy all the NS records for these zones to all the outputs. Stop
-	# on reaching a non-NS record or a record with a name field. Skip
-	# blank lines, and handle comments as normal.
+    # Copy all the NS records for these zones to all the outputs. Stop
+    # on reaching a non-NS record or a record with a name field. Skip
+    # blank lines, and handle comments as normal.
 
-	# We extend the syntax of NS records by allowing a list of names
-	# to follow the nameserver name. If this is present, it lists the
-	# zones to which this nameserver applies. Reverse zones are identified
-	# by their IP network numbers.
-	# This is also sufficient for handling of non byte-aligned nets. (CWF)
+    # We extend the syntax of NS records by allowing a list of names
+    # to follow the nameserver name. If this is present, it lists the
+    # zones to which this nameserver applies. Reverse zones are identified
+    # by their IP network numbers.
+    # This is also sufficient for handling of non byte-aligned nets. (CWF)
 
-	$nline--;
-	for ( ; ; ) {
-		last if !( $_ = <SOURCE> );
-		$nline++;
-		if (/^;/) { &handle_comment(); next; }
-		next if /^\s*$/;
-		last if /^\S/;
+    $nline--;
+    for ( ; ; ) {
+        last if !( $_ = <SOURCE> );
+        $nline++;
+        if (/^;/) { &handle_comment(); next; }
+        next if /^\s*$/;
+        last if /^\S/;
 
-		my ( $ttl, $class, $ns, $rest ) =
-		  /^\s+(\d+\s+|)(IN\s+|)NS\s+(\S+)(|\s+.+)$/;
-		last if $ns eq "";
-		&check_fqn( $ns, "NS" );
+        my ( $ttl, $class, $ns, $rest ) =
+          /^\s+(\d+\s+|)(IN\s+|)NS\s+(\S+)(|\s+.+)$/;
+        last if $ns eq "";
+        &check_fqn( $ns, "NS" );
 
-		$rest =~ s/^\s+//;          # strip leading white space
-		$rest =~ s/\s*(;.*)?$//;    # strip trailing spaces and comments & NL
-		if ( $rest eq "" ) {
-			&print_forward($_);
-			&print_reverse($_);
-		}
-		else {
-			while ( $rest ne "" ) {
-				( my $zone, $rest ) = split( /\s+/, $rest, 2 );
+        $rest =~ s/^\s+//;          # strip leading white space
+        $rest =~ s/\s*(;.*)?$//;    # strip trailing spaces and comments & NL
+        if ( $rest eq "" ) {
+            &print_forward($_);
+            &print_reverse($_);
+        }
+        else {
+            while ( $rest ne "" ) {
+                ( my $zone, $rest ) = split( /\s+/, $rest, 2 );
 
-				my $do_ns = sub {
-					my ($params, $addr, $prefixlen) = @_;
+                my $do_ns = sub {
+                    my ( $params, $addr, $prefixlen ) = @_;
 
-					my ($i);
-					&error("bad prefix length $prefixlen")
-					  if ( $prefixlen % $params->{revbits}
-						|| $prefixlen <= 0
-						|| $prefixlen >= $params->{words} * $params->{bits} );
-					my @addr   = parse_ip $params, $1;
-					{
-						for ( $i = 0 ; $i < scalar @{$params->{rzone}} ; $i++ ) {
-							if ( $prefixlen == $params->{rzone}[$i]{prefixlen} && match_prefix_v6 \@addr, $params->{rzone}[$i]{prefix}, 128 ) {
-								my ($handle) = $params->{rzone}[$i]{handle};
-								print $handle "  $ttl  $class  NS  $ns\n";
-								last;
-							}
-						}
-						&error("unknown network number on NS record")
-						  if $i >= scalar @rzone6;
-					}
-				};
+                    my ($i);
+                    &error("bad prefix length $prefixlen")
+                      if ( $prefixlen % $params->{revbits}
+                        || $prefixlen <= 0
+                        || $prefixlen >= $params->{words} * $params->{bits} );
+                    my @addr = parse_ip $params, $1;
+                    {
+                        for ( $i = 0 ;
+                            $i < scalar @{ $params->{rzone} } ; $i++ )
+                        {
+                            if (
+                                $prefixlen == $params->{rzone}[$i]{prefixlen}
+                                && match_prefix_v6 \@addr,
+                                $params->{rzone}[$i]{prefix}, 128
+                              )
+                            {
+                                my ($handle) = $params->{rzone}[$i]{handle};
+                                print $handle "  $ttl  $class  NS  $ns\n";
+                                last;
+                            }
+                        }
+                        &error("unknown network number on NS record")
+                          if $i >= scalar @rzone6;
+                    }
+                };
 
-				if ( defined(my $i = [grep { $zone eq $zone[$_]{name} } 0..scalar @zone-1]->[0]) ) {
-					my $h = $zone[$i]{handle};
-					print $h "  $ttl  $class  NS  $ns\n";
-				}
-				elsif ( $zone =~ /(.*:.*)\/(\d+)/ )    # IPv6
-				{
-					$do_ns->($ipv6_params, $1, $2);
-				}
-				elsif($zone =~ /^(\d+)(?:\.(\d+)(?:\.(\d+)(?:\.(\d+))?)?)?(?:\/(\d+))?$/) {
-					my ($a, $b, $c, $d, $prefixlen) = ($1, $2||0, $3||0, $4||0, $5 || (defined $4 ? 32 : defined $3 ? 24 : defined $2 ? 16 : 8));
-					$do_ns->($ipv4_params, "$a.$b.$c.$d", $prefixlen);
-				}
-			}
-		}
-	}
+                if (
+                    defined(
+                        my $i = [
+                            grep { $zone eq $zone[$_]{name} }
+                              0 .. scalar @zone - 1
+                          ]->[0]
+                    )
+                  )
+                {
+                    my $h = $zone[$i]{handle};
+                    print $h "  $ttl  $class  NS  $ns\n";
+                }
+                elsif ( $zone =~ /(.*:.*)\/(\d+)/ )    # IPv6
+                {
+                    $do_ns->( $ipv6_params, $1, $2 );
+                }
+                elsif ( $zone =~
+                    /^(\d+)(?:\.(\d+)(?:\.(\d+)(?:\.(\d+))?)?)?(?:\/(\d+))?$/ )
+                {
+                    my ( $a, $b, $c, $d, $prefixlen ) = (
+                        $1,
+                        $2 || 0,
+                        $3 || 0,
+                        $4 || 0,
+                        $5
+                          || (
+                              defined $4 ? 32
+                            : defined $3 ? 24
+                            : defined $2 ? 16
+                            : 8
+                          )
+                    );
+                    $do_ns->( $ipv4_params, "$a.$b.$c.$d", $prefixlen );
+                }
+            }
+        }
+    }
 
-	# OK, now we have the first general record in $_. We can now scan
-	# the rest of the file, processing as required. We do a check on
-	# the first character of the line, because it is easy in moments
-	# of absent-mindedness to do silly things like put in comments with
-	# a sharp sign character instead of a semicolon. Let through only
-	# those characters that can legally begin a line.
+    # OK, now we have the first general record in $_. We can now scan
+    # the rest of the file, processing as required. We do a check on
+    # the first character of the line, because it is easy in moments
+    # of absent-mindedness to do silly things like put in comments with
+    # a sharp sign character instead of a semicolon. Let through only
+    # those characters that can legally begin a line.
 
-	for ( ; ; ) {
-		if ( !/^\s*$/ ) {
-			if ( !/^[\s\d_a-zA-Z\;>\"@\*]/ ) {
-				&error("invalid line - semicolon omitted?");
-			}
-			elsif ( substr( $_, 0, 1 ) eq ";" ) { &handle_comment(); }
-			else                                { &handle_record(); }
-		}
-		last if !( $_ = <SOURCE> );
-		$nline++;
-	}
+    for ( ; ; ) {
+        if ( !/^\s*$/ ) {
+            if ( !/^[\s\d_a-zA-Z\;>\"@\*]/ ) {
+                &error("invalid line - semicolon omitted?");
+            }
+            elsif ( substr( $_, 0, 1 ) eq ";" ) { &handle_comment(); }
+            else                                { &handle_record(); }
+        }
+        last if !( $_ = <SOURCE> );
+        $nline++;
+    }
 
-	# Close all the files
+    # Close all the files
 
-	close SOURCE;
-	for ( $i = 0 ; $i < scalar @zone ; $i++ )   { close( $zone[$i]{handle} ); }
-	for ( $i = 0 ; $i < scalar @rzone ; $i++ )  { close( $rzone[$i]{handle} ); }
-	for ( $i = 0 ; $i < scalar @rzone6 ; $i++ ) { close( $rzone6[$i]{handle} ); }
+    close SOURCE;
+    for ( $i = 0 ; $i < scalar @zone ; $i++ )  { close( $zone[$i]{handle} ); }
+    for ( $i = 0 ; $i < scalar @rzone ; $i++ ) { close( $rzone[$i]{handle} ); }
+    for ( $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
+        close( $rzone6[$i]{handle} );
+    }
 }
 
 ##################################################
@@ -2032,49 +2234,49 @@ sub generate_zones {
 ##################################################
 
 sub check_length {
-	my ( $length_old, $length_new, $length_diff );
-	my ($name) = $_[0];
+    my ( $length_old, $length_new, $length_diff );
+    my ($name) = $_[0];
 
-	if ( !-e $name ) {
-		print "\n" if $lastwaserror;
-		print "  " if $chatty;
-		print
+    if ( !-e $name ) {
+        print "\n" if $lastwaserror;
+        print "  " if $chatty;
+        print
 "Length of $name not checked - previous version of file does not exist\n";
-		$lastwaserror = 0;
-		return;
-	}
+        $lastwaserror = 0;
+        return;
+    }
 
-	my @stat_data = stat($name);
-	$length_old  = $stat_data[7];
-	@stat_data   = stat("$name.new");
-	$length_new  = $stat_data[7];
-	$length_diff = $length_old - $length_new;
+    my @stat_data = stat($name);
+    $length_old  = $stat_data[7];
+    @stat_data   = stat("$name.new");
+    $length_new  = $stat_data[7];
+    $length_diff = $length_old - $length_new;
 
-	if ( $length_diff > ( $length_old / 20 ) ) {
-		&error( "$name.new is more than 5% shorter than $name.\n"
-			  . "** Use -short to override this check." );
-		$lastwaserror = 1;
-	}
-	elsif ($chatty) {
-		print "\n" if $lastwaserror;
-		print "  Length of $name is OK\n";
-		$lastwaserror = 0;
-	}
+    if ( $length_diff > ( $length_old / 20 ) ) {
+        &error( "$name.new is more than 5% shorter than $name.\n"
+              . "** Use -short to override this check." );
+        $lastwaserror = 1;
+    }
+    elsif ($chatty) {
+        print "\n" if $lastwaserror;
+        print "  Length of $name is OK\n";
+        $lastwaserror = 0;
+    }
 }
 
 sub compare_lengths {
-	my ($i);
-	print "Comparing lengths of old and new zone files...\n" if $chatty;
-	$lastwaserror = 0;
-	for ( $i = 0 ; $i < scalar @zone ; $i++ ) {
-		&check_length("$zone[$i]{file}");
-	}
-	for ( $i = 0 ; $i < scalar @rzone ; $i++ ) {
-		&check_length("$rzone[$i]{file}");
-	}
-	for ( $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
-		&check_length("$rzone6[$i]{file}");
-	}
+    my ($i);
+    print "Comparing lengths of old and new zone files...\n" if $chatty;
+    $lastwaserror = 0;
+    for ( $i = 0 ; $i < scalar @zone ; $i++ ) {
+        &check_length("$zone[$i]{file}");
+    }
+    for ( $i = 0 ; $i < scalar @rzone ; $i++ ) {
+        &check_length("$rzone[$i]{file}");
+    }
+    for ( $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
+        &check_length("$rzone6[$i]{file}");
+    }
 }
 
 ##################################################
@@ -2082,49 +2284,49 @@ sub compare_lengths {
 ##################################################
 
 sub rename_zones {
-	my ($i);
-	my ($xt) = ".new";
-	if ($postprocess_zonefiles) {
-		my ($xt2) = ".new2";
-		print "postprocessing the new zone files...\n"
-		  if $chatty;
-		for ( $i = 0 ; $i < scalar @zone ; $i++ ) {
-			print("\t$zone[$i]{file}\n") if $chatty;
-			my $dummy =
-			  `$postprocess_command < $zone[$i]{file}$xt > $zone[$i]{file}$xt2`;
-			&give_up("postprocessing failed with $zone[$i]{file}")
-			  if ( $? >> 8 );
-			unlink("$zone[$i]{file}$xt");
-		}
-		for ( $i = 0 ; $i < scalar @rzone ; $i++ ) {
-			print("\t$rzone[$i]{file}\n") if $chatty;
-			my $dummy =
-			  `$postprocess_command < $rzone[$i]{file}$xt > $rzone[$i]{file}$xt2`;
-			&give_up("postprocessing failed with $rzone[$i]{file}")
-			  if ( $? >> 8 );
-			unlink("$rzone[$i]{file}$xt");
-		}
-		for ( $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
-			print("\t$rzone6[$i]{file}\n") if $chatty;
-			my $dummy =
-			  `$postprocess_command < $rzone6[$i]{file}$xt > $rzone6[$i]{file}$xt2`;
-			&give_up("postprocessing failed with $rzone6[$i]{file}")
-			  if ( $? >> 8 );
-			unlink("$rzone6[$i]{file}$xt");
-		}
-		$xt = $xt2;
-	}
+    my ($i);
+    my ($xt) = ".new";
+    if ($postprocess_zonefiles) {
+        my ($xt2) = ".new2";
+        print "postprocessing the new zone files...\n"
+          if $chatty;
+        for ( $i = 0 ; $i < scalar @zone ; $i++ ) {
+            print("\t$zone[$i]{file}\n") if $chatty;
+            my $dummy =
+              `$postprocess_command < $zone[$i]{file}$xt > $zone[$i]{file}$xt2`;
+            &give_up("postprocessing failed with $zone[$i]{file}")
+              if ( $? >> 8 );
+            unlink("$zone[$i]{file}$xt");
+        }
+        for ( $i = 0 ; $i < scalar @rzone ; $i++ ) {
+            print("\t$rzone[$i]{file}\n") if $chatty;
+            my $dummy =
+`$postprocess_command < $rzone[$i]{file}$xt > $rzone[$i]{file}$xt2`;
+            &give_up("postprocessing failed with $rzone[$i]{file}")
+              if ( $? >> 8 );
+            unlink("$rzone[$i]{file}$xt");
+        }
+        for ( $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
+            print("\t$rzone6[$i]{file}\n") if $chatty;
+            my $dummy =
+`$postprocess_command < $rzone6[$i]{file}$xt > $rzone6[$i]{file}$xt2`;
+            &give_up("postprocessing failed with $rzone6[$i]{file}")
+              if ( $? >> 8 );
+            unlink("$rzone6[$i]{file}$xt");
+        }
+        $xt = $xt2;
+    }
 
-	print "Renaming the new zone files to their final names...\n" if $chatty;
-	for ( $i = 0 ; $i < scalar @zone ; $i++ ) {
-		rename( "$zone[$i]{file}$xt", "$zone[$i]{file}" );
-	}
-	for ( $i = 0 ; $i < scalar @rzone ; $i++ ) {
-		rename( "$rzone[$i]{file}$xt", "$rzone[$i]{file}" );
-	}
-	for ( $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
-		rename( "$rzone6[$i]{file}$xt", "$rzone6[$i]{file}" );
-	}
+    print "Renaming the new zone files to their final names...\n" if $chatty;
+    for ( $i = 0 ; $i < scalar @zone ; $i++ ) {
+        rename( "$zone[$i]{file}$xt", "$zone[$i]{file}" );
+    }
+    for ( $i = 0 ; $i < scalar @rzone ; $i++ ) {
+        rename( "$rzone[$i]{file}$xt", "$rzone[$i]{file}" );
+    }
+    for ( $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
+        rename( "$rzone6[$i]{file}$xt", "$rzone6[$i]{file}" );
+    }
 
 }
 
@@ -2136,19 +2338,19 @@ sub rename_zones {
 # fails. It is not an error for the temps not to exist.
 
 sub remove_temps {
-	my ($i);
-	for ( $i = 0 ; $i < scalar @zone ; $i++ ) {
-		unlink "$zone[$i]{file}.new";
-		unlink "$zone[$i]{file}.new2";
-	}
-	for ( $i = 0 ; $i < scalar @rzone ; $i++ ) {
-		unlink "$rzone[$i]{file}.new";
-		unlink "$rzone[$i]{file}.new2";
-	}
-	for ( $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
-		unlink "$rzone6[$i]{file}.new";
-		unlink "$rzone6[$i]{file}.new2";
-	}
+    my ($i);
+    for ( $i = 0 ; $i < scalar @zone ; $i++ ) {
+        unlink "$zone[$i]{file}.new";
+        unlink "$zone[$i]{file}.new2";
+    }
+    for ( $i = 0 ; $i < scalar @rzone ; $i++ ) {
+        unlink "$rzone[$i]{file}.new";
+        unlink "$rzone[$i]{file}.new2";
+    }
+    for ( $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
+        unlink "$rzone6[$i]{file}.new";
+        unlink "$rzone6[$i]{file}.new2";
+    }
 }
 
 ##################################################
@@ -2161,8 +2363,8 @@ sub remove_temps {
 # and compare_lengths() handle errors in this way - all the
 # other routines generate hard errors.
 
-$errors       = 0;
-$soa_count    = 6;
+$errors    = 0;
+$soa_count = 6;
 
 # Get weaving...
 
@@ -2180,12 +2382,12 @@ $nline = -1;
 # If length checks successful, do renames and end happy.
 
 if ( $errors == 0 ) {
-	&compare_lengths() if !$opt_short;
-	if ( $errors == 0 ) {
-		&rename_zones();
-		print "\nMakezones completed successfully.\n";
-		exit 0;
-	}
+    &compare_lengths() if !$opt_short;
+    if ( $errors == 0 ) {
+        &rename_zones();
+        print "\nMakezones completed successfully.\n";
+        exit 0;
+    }
 }
 
 # Something didn't work out...
