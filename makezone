@@ -1115,6 +1115,36 @@ sub named_conf {
 }
 
 ##################################################
+#           Punycode IDNs                        #
+##################################################
+
+sub encode_punycode
+{
+    my ($domain) = @_;
+    return $domain
+      if not defined $domain;
+    return $domain
+      if $domain !~ /[^\000-\176]/;
+    eval '
+        require Net::LibIDN;
+        my $suffix = "";
+        $suffix = $1
+            if $domain =~ s/(".*)//;
+        $domain =~ s{([^\000-\037.]+)}{
+            Net::LibIDN::idn_to_ascii($1, "utf-8");
+        }ge;
+        $domain .= $suffix;
+        1;
+    ' or die $@;
+    return $domain;
+}
+
+sub getline
+{
+    return encode_punycode scalar <SOURCE>;
+}
+
+##################################################
 #           Update the serial number             #
 ##################################################
 
@@ -1136,7 +1166,7 @@ sub update_serial {
     # copy when copying the SOA data.
 
     for ( ; ; ) {
-        $_ = <SOURCE>;
+        $_ = getline;
         last if ( !/^\s*$/ && !/^\s*;/ && !/^\$TTL\s/ );
         $soa_count++;
     }
@@ -1159,7 +1189,7 @@ sub update_serial {
     # out the serial number.
 
     my ($pos) = tell SOURCE;
-    $_ = <SOURCE>;
+    $_ = getline;
     my ( $indent, $value ) = /^(\s+)(\d{10})(\s*;.*|)$/;
     &give_up("malformed serial number line (line 2 of SOA)")
       if ( $value eq "" );
@@ -1167,7 +1197,7 @@ sub update_serial {
     # Check out the remaining lines of the SOA record
 
     for ( $i = 3 ; $i <= 6 ; $i++ ) {
-        $_ = <SOURCE>;
+        $_ = getline;
         my ($check) =
           ( $i == 6 ) ? /^\s+(\d+)\s*\)(\s*;.*|)$/ : /^\s+(\d+)(\s*;.*|)$/;
         &give_up("line $i of the SOA record is malformed") if ( $check eq "" );
@@ -2022,7 +2052,7 @@ sub handle_record {
             # Read in the next line, which contains more services, for the
             # next time round this loop.
 
-            $_ = <SOURCE>;
+            $_ = getline;
             $nline++;
             ( $list, my $dummy ) = $_ =~ /^\s*([^;]+)(;.*)?$/;
             $rest = "$list";
@@ -2090,7 +2120,7 @@ sub generate_zones {
     # Copy the SOA record into all the output files
 
     for ( $nline = 1 ; $nline <= $soa_count ; $nline++ ) {
-        $_ = <SOURCE>;
+        $_ = getline;
         &print_forward($_);
         &print_reverse($_);
     }
@@ -2112,7 +2142,7 @@ sub generate_zones {
 
     $nline--;
     for ( ; ; ) {
-        last if !( $_ = <SOURCE> );
+        last if !( $_ = getline );
         $nline++;
         if (/^;/) { &handle_comment(); next; }
         next if /^\s*$/;
@@ -2215,7 +2245,7 @@ sub generate_zones {
             elsif ( substr( $_, 0, 1 ) eq ";" ) { &handle_comment(); }
             else                                { &handle_record(); }
         }
-        last if !( $_ = <SOURCE> );
+        last if !( $_ = getline );
         $nline++;
     }
 
