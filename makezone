@@ -1467,6 +1467,18 @@ sub handle_record {
 			  if $addr_normalized eq "0:0:0:0:0:0:0:1";
 		}
 
+		if ( !$forwards_only ) {
+			if ( $addresses{"$addr_normalized"} && !$multiple ) {
+				return
+					if $ifndef;
+				&error(
+"duplicate IP address $addr_normalized specified for a PTR record.\n"
+					  . "** Use the >M flag if multiple PTR records are required.\n"
+					  . "** The first occurrence was in line $addresses{$addr_normalized}."
+				);
+			}
+		}
+
 		# Check known network (& find network) unless external
 
 		if ( !$external_net ) {
@@ -1488,28 +1500,15 @@ sub handle_record {
 		# multiples, and complain unless the record is flagged as such.
 
 		if ( !$forwards_only ) {
-			my $thisaddress = $addr_normalized;
-			if ( $addresses{"$thisaddress"} && !$multiple ) {
-				return
-					if $ifndef;
-				&error(
-"duplicate IP address $thisaddress specified for a PTR record.\n"
-					  . "** Use the >M flag if multiple PTR records are required.\n"
-					  . "** The first occurrence was in line $addresses{$thisaddress}."
-				);
-			}
-			else {
-
-				# modified to support CIDR-Style networks
-				my ($handle) = $params->{rzone}[$rzone]{handle};
-				print $handle format_ip_reverse_inzone($params, \@addr, $params->{words} * $params->{bits}, $params->{rzone}[$rzone]{prefix}, int($params->{rzone}[$rzone]{prefixlen} / $params->{revbits}) * $params->{revbits});
-				print $handle "  $ttl  $class  PTR  $name";
-				print $handle ".$thiszone_name."
-				  if ( substr( $name, -1, 1 ) ne "." );
-				print $handle "\n";
-				$addresses{"$thisaddress"} = $nline
-				  if !$addresses{"$thisaddress"};
-			}
+			# modified to support CIDR-Style networks
+			my ($handle) = $params->{rzone}[$rzone]{handle};
+			print $handle format_ip_reverse_inzone($params, \@addr, $params->{words} * $params->{bits}, $params->{rzone}[$rzone]{prefix}, int($params->{rzone}[$rzone]{prefixlen} / $params->{revbits}) * $params->{revbits});
+			print $handle "  $ttl  $class  PTR  $name";
+			print $handle ".$thiszone_name."
+			  if ( substr( $name, -1, 1 ) ne "." );
+			print $handle "\n";
+			$addresses{"$addr_normalized"} = $nline
+			  if !$addresses{"$addr_normalized"};
 		}
 	};
 
