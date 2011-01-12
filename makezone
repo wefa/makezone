@@ -1213,7 +1213,7 @@ sub handle_comment {
 
 sub check_fqn {
     &error("$_[1] record must point to a valid, fully qualified name.")
-      if ( $_[0] !~ /^[a-zA-Z\d][a-zA-Z\d\-]*(\.[a-zA-Z\d][a-zA-z\d\-]*)*\.$/ );
+      if ( $_[0] !~ /^($name_pattern\.)+$/ );
 }
 
 ##################################################
