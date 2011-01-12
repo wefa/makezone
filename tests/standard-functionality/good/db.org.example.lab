@@ -1,7 +1,7 @@
 ; Domainsource lab.example.org
 $TTL 300
 @	300	IN	SOA	login.lab.example.org. me.lab.example.org. (
-				2011010743	;serial
+				2011011201	;serial
 				60		;Refresh
 				30		;Retry
 				604800		;Expire
@@ -14,3 +14,4 @@ router-failover2	IN	A	  192.0.2.3
 ; forward-comment
 rr-comment		IN	A	  192.0.2.4
 forward-only		IN	A	  192.0.2.6
+sub.router		IN	A	  192.0.2.8
