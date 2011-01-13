@@ -1447,6 +1447,7 @@ sub handle_record {
         if ( $name =~ s/\.\Q$zn\E\.$// ) {
             $thiszone_name   = $zn;
             $thiszone_handle = $zone[$zi]{handle};
+            $printname       =~ s/\.\Q$zn\E\.$//;
             last;
         }
     }
