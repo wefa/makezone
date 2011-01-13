@@ -717,7 +717,7 @@ sub cname_hack {
 }
 
 sub enddot {
-    my ( $name ) = @_;
+    my ($name) = @_;
     return $name if $name eq "";
     return $name if $name =~ /\.$/;
     return "$name.";
@@ -1036,11 +1036,13 @@ sub unpick_args {
                     $2 || 0,
                     $3 || 0,
                     $4 || 0,
-                    defined $5 ? $5 :
-                      (   defined $4 ? 32
+                    defined $5 ? $5
+                    : (
+                          defined $4 ? 32
                         : defined $3 ? 24
                         : defined $2 ? 16
-                        :              8 )
+                        : 8
+                    )
                 );
                 my $v4addr = "$a.$b.$c.$d";
                 unpick_args_addzones( $ipv4_params, $file,
@@ -1124,8 +1126,7 @@ sub named_conf {
 #           Punycode IDNs                        #
 ##################################################
 
-sub encode_punycode
-{
+sub encode_punycode {
     my ($domain) = @_;
     return $domain
       if not defined $domain;
@@ -1145,8 +1146,7 @@ sub encode_punycode
     return $domain;
 }
 
-sub getline
-{
+sub getline {
     return encode_punycode scalar <SOURCE>;
 }
 
@@ -1447,7 +1447,7 @@ sub handle_record {
         if ( $name =~ s/\.\Q$zn\E\.$// ) {
             $thiszone_name   = $zn;
             $thiszone_handle = $zone[$zi]{handle};
-            $printname       =~ s/\.\Q$zn\E\.$//;
+            $printname =~ s/\.\Q$zn\E\.$//;
             last;
         }
     }
@@ -1474,8 +1474,10 @@ sub handle_record {
         $name = substr( $name, 1, length($name) - 2 );
         $printname = $name if ( substr( $printname, 0, 1 ) ne " " );
     }
-    elsif ( $name =~ /^\d{1,3}(\.\d{1,3})*\/\d{1,2}$|^\d{1,3}(\/\d{1,2})?(\.\d{1,3})*$/ )
+    elsif ( $name =~
+        /^\d{1,3}(\.\d{1,3})*\/\d{1,2}$|^\d{1,3}(\/\d{1,2})?(\.\d{1,3})*$/ )
     {
+
         # Just check that this is on a PTR or NS or DUP record - full checking
         # of the name happens later for PTR & NS records.
         if ( $type ne "PTR" && $type ne "NS" && $type ne "DUP" ) {
@@ -1484,8 +1486,8 @@ sub handle_record {
         }
         $fqdn = "$name.in-addr.arpa.";
     }
-    elsif ( $name =~ /^[0-9a-fA-F:]*:[0-9a-fA-F:]*(?:\/\d{1,3})?$/ )
-    {
+    elsif ( $name =~ /^[0-9a-fA-F:]*:[0-9a-fA-F:]*(?:\/\d{1,3})?$/ ) {
+
         # Just check that this is on a PTR or NS or DUP record - full checking
         # of the name happens later for PTR & NS records.
         if ( $type ne "PTR" && $type ne "NS" && $type ne "DUP" ) {
@@ -1495,6 +1497,7 @@ sub handle_record {
         $fqdn = "$name.ip6.arpa.";
     }
     elsif ( $name !~ /^$name_pattern(\.$name_pattern)*$/o ) {
+
         # we ignore name pattern checks for srv and naptr records [CWF]
         if ( ( $type ne "SRV" ) && ( $type ne "NAPTR" ) ) {
             &error(
@@ -1618,11 +1621,13 @@ sub handle_record {
             }
         }
         if ( $params eq $ipv4_params ) {
+
             # The loopback address is always treated as external
             $external_net = $forwards_only = 1
               if ( $addr_normalized eq "127.0.0.1" );
         }
         else {
+
             # The loopback address is always treated as external
             $external_net = $forwards_only = 1
               if $addr_normalized eq "0:0:0:0:0:0:0:1";
@@ -1995,7 +2000,7 @@ sub handle_record {
             my $net = ( $a << 24 ) | ( $b << 16 ) | ( $c << 8 ) | $d;
 
 # NOTE: WKS records do not support IPv6 and are deprecated. So no v6 support here.
-            my $rzone = &find_zone_ip($ipv4_params, 0, [$a, $b, $c, $d]);
+            my $rzone = &find_zone_ip( $ipv4_params, 0, [ $a, $b, $c, $d ] );
 
             if ( !$rzone ) {
                 &error("$net is not a known network.");
