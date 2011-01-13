@@ -1467,11 +1467,8 @@ sub handle_record {
         $name = substr( $name, 1, length($name) - 2 );
         $printname = $name if ( substr( $printname, 0, 1 ) ne " " );
     }
-    elsif ( $name =~
-/^\d{1,3}(\.\d{1,3})*\/\d{1,2}$|^\d{1,3}(\/\d{1,2})?(\.\d{1,3})*$|^[0-9a-fA-F:]*:[0-9a-fA-F:]*(?:\/\d{1,3})?$/
-      )
+    elsif ( $name =~ /^\d{1,3}(\.\d{1,3})*\/\d{1,2}$|^\d{1,3}(\/\d{1,2})?(\.\d{1,3})*$/ )
     {
-
         # Just check that this is on a PTR or NS or DUP record - full checking
         # of the name happens later for PTR & NS records.
         if ( $type ne "PTR" && $type ne "NS" && $type ne "DUP" ) {
@@ -1480,8 +1477,17 @@ sub handle_record {
         }
         $fqdn = "$name.in-addr.arpa.";
     }
+    elsif ( $name =~ /^[0-9a-fA-F:]*:[0-9a-fA-F:]*(?:\/\d{1,3})?$/ )
+    {
+        # Just check that this is on a PTR or NS or DUP record - full checking
+        # of the name happens later for PTR & NS records.
+        if ( $type ne "PTR" && $type ne "NS" && $type ne "DUP" ) {
+            &error("invalid name field for this type of record.");
+            $name = $lastname = "dummy";    # prevent subsequent errors
+        }
+        $fqdn = "$name.ip6.arpa.";
+    }
     elsif ( $name !~ /^$name_pattern(\.$name_pattern)*$/o ) {
-
         # we ignore name pattern checks for srv and naptr records [CWF]
         if ( ( $type ne "SRV" ) && ( $type ne "NAPTR" ) ) {
             &error(
@@ -1570,42 +1576,46 @@ sub handle_record {
         my (@addr) = parse_ip( $params, $rest );
         my ($addr_normalized) = format_ip_forward $params, @addr;
 
-        if ( $params eq $ipv4_params ) {
-            my ($nn) = $names{"$fqdn"} || 0;
-            if (   $duplicate_name_check
-                && $printname !~ /^\s*$/
-                && $nn > 0
-                && !$multiple )
-            {
-                return
-                  if $ifndef;
-                &error( "unexpected duplicate name.\n"
-                      . "** The first occurrence was in line $nn." );
+        if ( !$reverse_only ) {
+            if ( $params eq $ipv4_params ) {
+                my ($nn) = $names{"$fqdn"} || 0;
+                if (   $duplicate_name_check
+                    && $printname !~ /^\s*$/
+                    && $nn > 0
+                    && !$multiple )
+                {
+                    return
+                      if $ifndef;
+                    &error( "unexpected duplicate name.\n"
+                          . "** The first occurrence was in line $nn." );
+                }
+
+                $names{"$fqdn"} = $nline if !$nn || $nn == $used_other;
             }
+            else {
+                my ($nn) = $names_v6{"$fqdn"} || 0;
 
-            $names{"$fqdn"} = $nline if !$nn || $nn == $used_other;
+                if (   $duplicate_name_check
+                    && $printname !~ /^\s*$/
+                    && $nn > 0
+                    && !$multiple )
+                {
+                    return
+                      if $ifndef;
+                    &error( "unexpected duplicate name.\n"
+                          . "** The first occurrence was in line $nn." );
+                }
 
+                $names_v6{"$fqdn"} = $nline      if !$nn;
+                $names{"$fqdn"}    = $used_other if !$names{"$fqdn"};
+            }
+        }
+        if ( $params eq $ipv4_params ) {
             # The loopback address is always treated as external
             $external_net = $forwards_only = 1
               if ( $addr_normalized eq "127.0.0.1" );
         }
         else {
-            my ($nn) = $names_v6{"$fqdn"} || 0;
-
-            if (   $duplicate_name_check
-                && $printname !~ /^\s*$/
-                && $nn > 0
-                && !$multiple )
-            {
-                return
-                  if $ifndef;
-                &error( "unexpected duplicate name.\n"
-                      . "** The first occurrence was in line $nn." );
-            }
-
-            $names_v6{"$fqdn"} = $nline      if !$nn;
-            $names{"$fqdn"}    = $used_other if !$names{"$fqdn"};
-
             # The loopback address is always treated as external
             $external_net = $forwards_only = 1
               if $addr_normalized eq "0:0:0:0:0:0:0:1";
