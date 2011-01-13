@@ -1638,7 +1638,7 @@ sub handle_record {
         if ( !$external_net ) {
             $rzone = &find_zone_ip( $params, 0, @addr );
 
-            if ( $rzone >= scalar @{ $params->{rzone} } ) {
+            if ( !defined $rzone ) {
                 &error(
 "IP address is not in a known network (use >E for externals)."
                 );
@@ -1737,7 +1737,7 @@ sub handle_record {
 
             $rzone = &find_zone_ip( $params, 0, @addr );
 
-            if ( $rzone >= scalar @{ $params->{rzone} } ) {
+            if ( !defined $rzone ) {
                 &error("wrong PTR: $net is not part of a known network.");
             }
             else {
@@ -1847,7 +1847,7 @@ sub handle_record {
 
             $rzone = &find_zone_ip( $params, 1, @addr );
 
-            if ( $rzone >= scalar @{ $params->{rzone} } ) {
+            if ( !defined $rzone ) {
                 &error("$addr/$prefixlen is not a subnet of a known network.");
             }
             elsif ($cidr_extension
@@ -1988,9 +1988,9 @@ sub handle_record {
             my $net = ( $a << 24 ) | ( $b << 16 ) | ( $c << 8 ) | $d;
 
 # NOTE: WKS records do not support IPv6 and are deprecated. So no v6 support here.
-            my $rzone = &find_zone($net);
+            my $rzone = &find_zone_ip($ipv4_params, 0, [$a, $b, $c, $d]);
 
-            if ( $rzone >= scalar @rzone ) {
+            if ( !$rzone ) {
                 &error("$net is not a known network.");
             }
         }
