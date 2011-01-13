@@ -8,6 +8,6 @@ $TTL 300
 				300 )		;Minimum
 			IN	NS	  ns1.lab.example.org.
 			IN	NS	  ns2.lab.example.org.
-host1.lab2.example.org.	IN	A	  192.0.2.2
+host1			IN	A	  192.0.2.2
 host2			IN	A	  192.0.2.4
 host3			IN	A	  192.0.2.6

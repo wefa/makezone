@@ -9,5 +9,5 @@ $TTL 300
 			IN	NS	  ns1.lab.example.org.
 			IN	NS	  ns2.lab.example.org.
 host1			IN	A	  192.0.2.1
-host2.lab1.example.org.	IN	A	  192.0.2.3
+host2			IN	A	  192.0.2.3
 host3			IN	A	  192.0.2.5
