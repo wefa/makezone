@@ -592,7 +592,7 @@ my $ipv4_params = {
     bits       => 8,
     revbits    => 8,
     recordtype => "A",
-    suffix     => ".IN-ADDR.ARPA",
+    suffix     => "IN-ADDR.ARPA",
     rzone      => \@rzone
 };
 my $ipv6_params = {
@@ -600,7 +600,7 @@ my $ipv6_params = {
     bits       => 16,
     revbits    => 4,
     recordtype => "AAAA",
-    suffix     => ".IP6.ARPA",
+    suffix     => "IP6.ARPA",
     rzone      => \@rzone6
 };
 
@@ -714,6 +714,13 @@ sub cname_hack {
 
     &error("cname hack but no dots?");
     return undef;
+}
+
+sub enddot {
+    my ( $name ) = @_;
+    return $name if $name eq "";
+    return $name if $name =~ /\.$/;
+    return "$name.";
 }
 
 ##################################################
@@ -952,7 +959,7 @@ sub unpick_args_addzones {
     my ( $params, $file, $prefix, $prefixlen ) = @_;
 
     &give_up("bad prefix length $prefixlen")
-      if ( $prefixlen <= 0
+      if ( $prefixlen < 0
         || $prefixlen >= $params->{bits} * $params->{words} );
 
     if ( $prefixlen > $params->{bits} * $params->{words} - $params->{revbits} )
@@ -969,7 +976,7 @@ sub unpick_args_addzones {
             [ (0) x $params->{words} ], 0
         );
         my $subnet_name = cname_hack $subnet, $prefixlen;
-        $zone->{name} = $subnet_name . $params->{suffix};
+        $zone->{name} = enddot($subnet_name) . $params->{suffix};
     }
     else {
 
@@ -985,7 +992,7 @@ sub unpick_args_addzones {
             $zone->{prefixlen} = $_->[1];
             $subnet =~ /^([^.]+)/;
             $zone->{file} = $file . ( @l == 1 ? "" : ".$1" );
-            $zone->{name} = $subnet . $params->{suffix};
+            $zone->{name} = enddot($subnet) . $params->{suffix};
         }
     }
 }
@@ -1029,9 +1036,8 @@ sub unpick_args {
                     $2 || 0,
                     $3 || 0,
                     $4 || 0,
-                    $5
-                      || (
-                          defined $4 ? 32
+                    defined $5 ? $5 :
+                      (   defined $4 ? 32
                         : defined $3 ? 24
                         : defined $2 ? 16
                         :              8 )
@@ -1893,7 +1899,7 @@ sub handle_record {
                             $params->{rzone}[$rzone]{prefixlen}
                         );
                         $subnet =~ /^([^.]+)/;
-                        my $subnet_name = "$1.$chack";
+                        my $subnet_name = enddot("$1.$chack");
                         print $handle
 "$subnet  $ttl  $class  CNAME  $subnet_name$params->{suffix}.\n";
                     }
