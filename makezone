@@ -1137,7 +1137,7 @@ sub encode_punycode {
         my $suffix = "";
         $suffix = $1
             if $domain =~ s/(".*)//;
-        $domain =~ s{([^\000-\037.]+)}{
+        $domain =~ s{([^\000-\037 .]+)}{
             Net::LibIDN::idn_to_ascii($1, "utf-8");
         }ge;
         $domain .= $suffix;
