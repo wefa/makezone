@@ -1484,7 +1484,7 @@ sub handle_record {
             &error("invalid name field for this type of record.");
             $name = $lastname = "dummy";    # prevent subsequent errors
         }
-        $fqdn = "$name.in-addr.arpa.";
+        $fqdn = "$name.in-addr.arpa."; # FIXME
     }
     elsif ( $name =~ /^[0-9a-fA-F:]*:[0-9a-fA-F:]*(?:\/\d{1,3})?$/ ) {
 
@@ -1494,7 +1494,7 @@ sub handle_record {
             &error("invalid name field for this type of record.");
             $name = $lastname = "dummy";    # prevent subsequent errors
         }
-        $fqdn = "$name.ip6.arpa.";
+        $fqdn = "$name.ip6.arpa."; # FIXME
     }
     elsif ( $name !~ /^$name_pattern(\.$name_pattern)*$/o ) {
 
