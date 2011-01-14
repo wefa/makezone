@@ -1147,7 +1147,13 @@ sub encode_punycode {
 }
 
 sub getline {
-    return encode_punycode scalar <SOURCE>;
+    my $s = scalar <SOURCE>;
+    return $s
+      if not defined $s;
+    # handle the >8 flag (unicode)
+    $s = $1 . encode_punycode $2
+      if $s =~ /^(>[A-Z0-9]*8[A-Z0-9]*)(.*)/;
+    return $s;
 }
 
 ##################################################
@@ -1307,8 +1313,12 @@ sub handle_record {
 
     my $flags = "";
     my $rest  = $_;
-    if ( $rest =~ s/^>([A-Z]*)(?=\s) ?// ) {
+    if ( $rest =~ s/^>([A-Z0-9]*)(?=\s) ?// ) {
         $flags = $1;
+    }
+    if ( $flags =~ /8/ ) {
+        # the unicdoe/punycode flag - it has been handled earlier already, so
+        # no processing done here
     }
     if ( $flags =~ /E/ ) {
         $forwards_only = $external_net = 1;
