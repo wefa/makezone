@@ -25,3 +25,5 @@ rr-comment		IN	A	192.0.2.4 ; rr-comment
 192.0.2.7		IN	PTR	reverse-only-2.lab.example.org.
 
 sub.router		IN	A	192.0.2.8
+
+>U unknown-type		IN	FOO	"unknown-record"

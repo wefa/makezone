@@ -299,6 +299,9 @@ my $all_wildcards = 1;
 #   . The flag ">N " can be used to skip including an A or PTR record if it has
 #     already been defined.
 #
+#   . The flag ">U " can be used define a record of unknown type. No checking
+#     is done on its contents.
+#
 #   . We want to be able to check that all IP addresses are in one of the
 #     networks that we are processing for. However, occasionally a record must
 #     specify an external network (glue records are the prime example). Such
@@ -1300,8 +1303,12 @@ my $lastwaserror;
 my $default_zone = 0;
 
 sub handle_record {
-    my $forwards_only = my $reverse_only = my $external_net = my $multiple =
-      my $ifndef = 0;
+    my $forwards_only = 0;
+    my $reverse_only = 0;
+    my $external_net = 0;
+    my $multiple = 0;
+    my $ifndef = 0;
+    my $allow_unknown = 0;
 
    # If the record starts with ">E ", ">F ", ">M ", ">N " or ">R " set flags for
    # later checks once the type of record is known, and remove these characters.
@@ -1332,6 +1339,9 @@ sub handle_record {
     }
     if ( $flags =~ /R/ ) {
         $reverse_only = 1;
+    }
+    if ( $flags =~ /U/ ) {
+        $allow_unknown = 1;
     }
     if ( $flags =~ /Z/ and $rest eq "" ) {
         undef $default_zone;
@@ -2102,8 +2112,7 @@ sub handle_record {
 
     # other type
 
-    if ( $type =~ /^[A-Z0-9]*$/ ) {
-        warn "Unknown record type $type handled";
+    if ( $allow_unknown && $type =~ /^[A-Z0-9]*$/ ) {
         print $thiszone_handle "$printname  $ttl  $class  $type  $rest\n";
         return;
     }
