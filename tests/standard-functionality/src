@@ -22,7 +22,7 @@ rr-comment		IN	A	192.0.2.4 ; rr-comment
 
 >R reverse-only		IN	A	192.0.2.5
 >F forward-only		IN	A	192.0.2.6
-192.0.2.7		IN	PTR	reverse-only-2.lab.example.org.
+[192.0.2.7]		IN	PTR	reverse-only-2.lab.example.org.
 
 sub.router		IN	A	192.0.2.8
 

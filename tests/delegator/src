@@ -15,13 +15,13 @@ subdomain		IN	NS	ns1.subdomain.lab.example.org.
 			IN	NS	ns2.subdomain.lab.example.org.
 
 ;R small CIDR delegation
-192.168.17.32/27	IN	NS	ns1.subdomain.lab.example.org.
+[192.168.17.32/27]	IN	NS	ns1.subdomain.lab.example.org.
 			IN	NS	ns2.subdomain.lab.example.org.
 
 ;R regular delegation
-192.168.16.0/24		IN	NS	ns1.subdomain.lab.example.org.
+[192.168.16.0/24]	IN	NS	ns1.subdomain.lab.example.org.
 			IN	NS	ns2.subdomain.lab.example.org.
 
 ;R big CIDR delegation
-192.168.20.0/22		IN	NS	ns1.subdomain.lab.example.org.
+[192.168.20.0/22]	IN	NS	ns1.subdomain.lab.example.org.
 			IN	NS	ns2.subdomain.lab.example.org.

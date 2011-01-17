@@ -22,11 +22,11 @@ rr-comment		IN	AAAA	2001:db8:0001::4 ; rr-comment
 
 >R reverse-only		IN	AAAA	2001:db8:0001::5
 >F forward-only		IN	AAAA	2001:db8:0001::6
-2001:db8:0001::7	IN	PTR	reverse-only-2.lab.example.org.
+[2001:db8:0001::7]	IN	PTR	reverse-only-2.lab.example.org.
 
-2001:db8:0001:1234::/64	IN	NS	ns1.subdomain.lab.example.org.
-2001:db8:0001:5600::/55	IN	NS	ns1.subdomain.lab.example.org.
-2001:db8:0001:7890:abcd:ef01:2345:6788/126	IN	NS	ns1.subdomain.lab.example.org.
+[2001:db8:0001:1234::/64]	IN	NS	ns1.subdomain.lab.example.org.
+[2001:db8:0001:5600::/55]	IN	NS	ns1.subdomain.lab.example.org.
+[2001:db8:0001:7890:abcd:ef01:2345:6788/126]	IN	NS	ns1.subdomain.lab.example.org.
 
 foo1			IN	AAAA	2001:db8:0002:1234::1
 foo2			IN	AAAA	2001:db8:0002:5600::1

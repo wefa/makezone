@@ -2,6 +2,7 @@
 
 use strict;
 use warnings;
+use Carp;
 
 our $version_number = "0.22i [11-JAN-11]";
 
@@ -98,6 +99,7 @@ my $grep     = "/usr/bin/egrep";
 # variable to 1.
 
 my $chatty = 1;
+my $debug = ($ENV{MAKEZONE_DEBUG} ? 1 : 0);
 
 # If you delegate zones for subnets with non-octet borders,
 # there is a recommended way of doing this available as an internet
@@ -517,7 +519,11 @@ $SIG{__DIE__} = sub {
 };
 
 sub give_up {
-    die @_, "\n";
+    if($debug) {
+        Carp::confess @_, "\n";
+    } else {
+        die @_, "\n";
+    }
 }
 
 ##################################################
@@ -534,14 +540,18 @@ $SIG{__WARN__} = sub {
         print "   At line $nline of $source_file:\n";
         print "   $_";
     }
+};
+
+sub error {
+    if($debug) {
+        Carp::cluck @_, "\n";
+    } else {
+        warn @_, "\n";
+    }
     if ( ++$errors > 10 ) {
         &remove_temps();
         die "\n** Makezones: too many errors - processing abandoned.\n\n";
     }
-};
-
-sub error {
-    warn @_, "\n";
 }
 
 ##################################################
@@ -1472,6 +1482,25 @@ sub handle_record {
 
     my $fqdn;
 
+    if($name =~ /^\d{1,3}(\/\d{1,2})?(\.\d{1,3})*(?:\.in-addr\.arpa\.)?$/i) {
+        # d/mask.c.b.a[.in-addr.arpa] -> [a.b.c.d/mask]
+        my @l = split /\./, $name;
+        $name = join ".", reverse $name;
+        $name = "[$name]";
+    }
+
+    if($name =~ /^([0-9a-f])(?:\/(\d{1,3}))?((?:\.[0-9a-f])*)(?:\.ip6\.arpa\.)?$/i)
+    {
+        # x/mask.x.x.x.x.x.x.x.x.x.x.x.x.x.ip6.arpa -> [x:x::x/mask]
+        my $address = reverse "$1$2";
+        my $mask = $3;
+
+        $address =~ s/\.//g;
+        $address =~ s/(....)(?!$)/$1:/g;
+        $address .= "::/$mask";
+        $name = "[$address]";
+    }
+
     if ( $name eq "@" ) {
         $name = "$thiszone_name.";
         $printname = $name if ( substr( $printname, 0, 1 ) ne " " );
@@ -1492,34 +1521,30 @@ sub handle_record {
         $name = substr( $name, 1, length($name) - 2 );
         $printname = $name if ( substr( $printname, 0, 1 ) ne " " );
     }
-    elsif ( $name =~
-        /^\d{1,3}(\.\d{1,3})*\/\d{1,2}$|^\d{1,3}(\/\d{1,2})?(\.\d{1,3})*$/ )
+    elsif ( $name =~ /^\[\d{1,3}(\.\d{1,3})*(?:\/\d{1,2})?\]$/ )
     {
-
         # Just check that this is on a PTR or NS or DUP record - full checking
         # of the name happens later for PTR & NS records.
         if ( $type ne "PTR" && $type ne "NS" && $type ne "DUP" ) {
             &error("invalid name field for this type of record.");
             $name = $lastname = "dummy";    # prevent subsequent errors
         }
-        $fqdn = "$name.in-addr.arpa."; # FIXME
+        undef $fqdn; # FIXME
     }
-    elsif ( $name =~ /^[0-9a-fA-F:]*:[0-9a-fA-F:]*(?:\/\d{1,3})?$/ ) {
-
+    elsif ( $name =~ /^\[[0-9a-fA-F:]*:[0-9a-fA-F:]*(?:\/\d{1,3})?\]$/ ) {
         # Just check that this is on a PTR or NS or DUP record - full checking
         # of the name happens later for PTR & NS records.
         if ( $type ne "PTR" && $type ne "NS" && $type ne "DUP" ) {
             &error("invalid name field for this type of record.");
             $name = $lastname = "dummy";    # prevent subsequent errors
         }
-        $fqdn = "$name.ip6.arpa."; # FIXME
+        undef $fqdn; # FIXME
     }
     elsif ( $name !~ /^$name_pattern(\.$name_pattern)*$/o ) {
-
         # we ignore name pattern checks for srv and naptr records [CWF]
         if ( ( $type ne "SRV" ) && ( $type ne "NAPTR" ) ) {
             &error(
-                "invalid name field (components do not match name pattern).");
+                "invalid name field $name (components do not match name pattern).");
             $name = $lastname = "dummy";    # prevent subsequent errors
         }
     }
@@ -1800,12 +1825,15 @@ sub handle_record {
             }
         };
 
-        if ( $name =~ /:/ )    # IPv6
+        if ( $name =~ /^\[(.*:.*)\]$/ )    # IPv6
         {
-            $do_ptr->( $ipv6_params, $name, $rest );
+            $do_ptr->( $ipv6_params, $1, $rest );
+        }
+        elsif ( $name =~ /^\[(.*)\]$/ ) {
+            $do_ptr->( $ipv4_params, $1, $rest );
         }
         else {
-            $do_ptr->( $ipv4_params, $name, $rest );
+            &error("unrecognized PTR record for $name");
         }
 
         return;
@@ -1940,24 +1968,21 @@ sub handle_record {
             }
         };
 
-        if ( $name =~ /(.*:.*)\/(.*)/ ) {
+        if ( $name =~ /^\[(.*:.*)\/(.*)\]$/ ) {
             $do_ns->( $ipv6_params, $1, $2 );
         }
         elsif ( $name =~
-/^(\d+)(?:\.(\d+)(?:\.(\d+)(?:\.(\d+))?)?)?(?:\/(\d+))?$|^(\d+)\/(\d+)\.(\d+)\.(\d+)\.(\d+)$/
+/^\[(\d+)(?:\.(\d+)(?:\.(\d+)(?:\.(\d+))?)?)?(?:\/(\d+))?\]$/
           )
         {
             my ( $a, $b, $c, $d, $prefixlen ) =
-              $1
-              ? (
+(
                 $1,
                 $2 || 0,
                 $3 || 0,
                 $4 || 0,
                 $5
-                  || ( defined $4 ? 32 : defined $3 ? 24 : defined $2 ? 16 : 8 )
-              )
-              : ( $10, $9, $8, $6, $7 );
+                  || ( defined $4 ? 32 : defined $3 ? 24 : defined $2 ? 16 : 8 ));
             $do_ns->( $ipv4_params, "$a.$b.$c.$d", $prefixlen );
         }
 
@@ -2278,7 +2303,7 @@ sub generate_zones {
 
     for ( ; ; ) {
         if ( !/^\s*$/ ) {
-            if ( !/^[\s\d_a-zA-Z\;>\"@\*]/ ) {
+            if ( !/^[\[\s\d_a-zA-Z\;>\"@\*]/ ) {
                 &error("invalid line - semicolon omitted?");
             }
             elsif ( substr( $_, 0, 1 ) eq ";" ) { &handle_comment(); }
