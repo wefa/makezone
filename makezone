@@ -992,6 +992,7 @@ sub unpick_args_addzones {
         );
         my $subnet_name = cname_hack $subnet, $prefixlen;
         $zone->{name} = enddot($subnet_name) . $params->{suffix};
+        $zone->{soasource} = scalar @sourcefiles;
     }
     else {
 
@@ -1008,6 +1009,7 @@ sub unpick_args_addzones {
             $subnet =~ /^([^.]+)/;
             $zone->{file} = $file . ( @l == 1 ? "" : ".$1" );
             $zone->{name} = enddot($subnet) . $params->{suffix};
+            $zone->{soasource} = scalar @sourcefiles;
         }
     }
 }
@@ -1031,6 +1033,7 @@ sub unpick_args {
             ( $zone->{name} = shift @ARGV ) =~
               s/\.$//;    # remove trailing dot if present
             $zone->{file} = shift @ARGV;
+            $zone->{soasource} = scalar @sourcefiles;
         }
         elsif (/^-r$/) {
 
@@ -1071,14 +1074,13 @@ sub unpick_args {
             &give_up("unknown option \"$ARGV[0]\"");
         }
         else {
-            &give_up("already have a source file")
-              if defined $source_file;
-            $source_file = $_;
+            push @sourcefiles, { file => $_ };
         }
     }
 
     &give_up("do not have a source file")
-      if not defined $source_file;
+      if not @sourcefiles;
+    $source_file = $sourcefiles[0]{file}; # temp
 }
 
 ##################################################
