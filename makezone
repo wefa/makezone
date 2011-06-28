@@ -1475,7 +1475,7 @@ sub handle_record($) {
     # WKS records, and >M for PTR records.
 
     if ( $multiple || $ifndef ) {
-        &error(">M or >I may be specified only for type A or type PTR records.")
+        &error(">M or >N may be specified only for type A or type PTR records.")
           if ( $type ne "A"
             && $type ne "AAAA"
             && $type ne "PTR"
