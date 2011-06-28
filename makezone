@@ -560,7 +560,7 @@ sub error {
 
 my @sourcefiles = ();
 
-# each member is a hash with members file, handle, soa_count
+# each member is a hash with members file, handle, soa_count, idx
 
 my @zone = ();
 
@@ -1080,6 +1080,8 @@ sub unpick_args {
 
     &give_up("do not have a source file")
       if not @sourcefiles;
+    $sourcefiles[$_]{idx} = $_
+        for 0..@sourcefiles-1;
 }
 
 ##################################################
