@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Carp;
 
-our $version_number = "0.22i [11-JAN-11]";
+our $version_number = "0.22j [17-JUN-11]";
 
 ########################################################################
 #                           MAKEZONES                                  #
@@ -484,6 +484,7 @@ my $all_wildcards = 1;
 #   0.22g CWF Apr-08  Added Wildcards of all types
 #   0.22h CWF Jun-10  permitted wildcard consisting of "*" only
 #   0.22i RP  Jan-11  IPv6 support
+#   0.22j RP  Jun-11  multi src support
 #
 
 ##################################################
