@@ -2283,7 +2283,7 @@ sub generate_soa($) {
                       if ( $prefixlen % $params->{revbits}
                         || $prefixlen <= 0
                         || $prefixlen >= $params->{words} * $params->{bits} );
-                    my @addr = parse_ip $params, $1;
+                    my @addr = parse_ip $params, $addr;
                     {
                         for ( $i = 0 ;
                             $i < scalar @{ $params->{rzone} } ; $i++ )
@@ -2291,7 +2291,7 @@ sub generate_soa($) {
                             if (
                                 $prefixlen == $params->{rzone}[$i]{prefixlen}
                                 && match_prefix_v6 \@addr,
-                                $params->{rzone}[$i]{prefix}, 128
+                                $params->{rzone}[$i]{prefix}, $params->{words} * $params->{bits}
                               )
                             {
                                 my ($handle) = $params->{rzone}[$i]{handle};
@@ -2300,7 +2300,7 @@ sub generate_soa($) {
                             }
                         }
                         &error("unknown network number on NS record")
-                          if $i >= scalar @rzone6;
+                          if $i >= scalar @{ $params->{rzone} };
                     }
                 };
 
