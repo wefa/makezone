@@ -560,7 +560,7 @@ sub error {
 
 my @sourcefiles = ();
 
-# each member is a hash with members file, handle
+# each member is a hash with members file, handle, soa_count
 
 my @zone = ();
 
@@ -1181,8 +1181,6 @@ sub getline($) {
 # record at the top of the file. We require it to be split
 # so that every field is on a different line.
 
-my $soa_count;
-
 sub update_serial {
     for my $f(@sourcefiles)
     {
@@ -1198,10 +1196,11 @@ sub update_serial {
         # prior comments, counting them so that we know how many lines to
         # copy when copying the SOA data.
 
+        $f->{soa_count} = 6; # this is UGLY, can't we instead do a real count?
         for ( ; ; ) {
             $_ = getline $source;
             last if ( !/^\s*$/ && !/^\s*;/ && !/^\$TTL\s/ );
-            $soa_count++;
+            $f->{soa_count}++;
         }
 
         my ( $host, $hostmaster );
@@ -2204,8 +2203,9 @@ sub generate_zones($) {
 
     # Copy the SOA record into all the output files
 
-    for ( $current_source_line = 1 ; $current_source_line <= $soa_count ; $current_source_line++ ) {
+    for ( $current_source_line = 1 ; $current_source_line <= $f->{soa_count} ; $current_source_line++ ) {
         $_ = getline $source;
+        # FIXME only do this for files that match the current SOA!
         &print_forward($_);
         &print_reverse($_);
     }
@@ -2241,6 +2241,7 @@ sub generate_zones($) {
         $rest =~ s/^\s+//;          # strip leading white space
         $rest =~ s/\s*(;.*)?$//;    # strip trailing spaces and comments & NL
         if ( $rest eq "" ) {
+            # FIXME only do this for files that match the current SOA!
             &print_forward($_);
             &print_reverse($_);
         }
@@ -2479,7 +2480,6 @@ sub remove_temps {
 # other routines generate hard errors.
 
 $errors    = 0;
-$soa_count = 6;
 
 # Get weaving...
 
