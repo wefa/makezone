@@ -1531,7 +1531,7 @@ sub handle_record($) {
         $printname = $name
             if
                 substr( $printname, 0, 1 ) ne " "
-                and $thiszone_name eq $zone[$sourcefiles[$current_source_idx]{defaultzone}]{name};
+                and $thiszone_name ne $zone[$sourcefiles[$current_source_idx]{defaultzone}]{name};
     }
     elsif ( $name =~ /^\*/ ) {
         if ( $name !~ /^\*(\.$name_pattern)*$/o ) {
