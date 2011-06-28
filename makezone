@@ -502,16 +502,16 @@ my $all_wildcards = 1;
 ##################################################
 
 # Ensure any temporary files are removed first. If reading the main file,
-# $nline will be set non-zero and the current line will be in $_.
+# $current_source_line will be set non-zero and the current line will be in $_.
 
-my $nline;
-my $source_file;
+my $current_source_line;
+my $current_source_file;
 
 $SIG{__DIE__} = sub {
     &remove_temps();
     print "\n** Makezones: $_[0]";
-    if ( defined $nline and $nline > 0 ) {
-        print "   At line $nline of $source_file:\n";
+    if ( defined $current_source_line and $current_source_line > 0 ) {
+        print "   At line $current_source_line of $current_source_file:\n";
         print "   $_";
     }
     print STDERR "** Processing abandoned.\n\n";
@@ -536,8 +536,8 @@ my $errors = 0;
 
 $SIG{__WARN__} = sub {
     print "\n** Makezones: $_[0]";
-    if ( $nline > 0 ) {
-        print "   At line $nline of $source_file:\n";
+    if ( $current_source_line > 0 ) {
+        print "   At line $current_source_line of $current_source_file:\n";
         print "   $_";
     }
 };
@@ -1080,7 +1080,6 @@ sub unpick_args {
 
     &give_up("do not have a source file")
       if not @sourcefiles;
-    $source_file = $sourcefiles[0]{file}; # temp
 }
 
 ##################################################
@@ -1089,7 +1088,7 @@ sub unpick_args {
 
 sub verify {
     print "\nMakezones $version_number\n";
-    print "Generating DNS zone files from $source_file.\n";
+    print "Generating DNS zone files from @{[map { $_->{file} } @sourcefiles]}.\n";
 
     printf "  Forward zone file%s ", ( scalar @zone == 1 ) ? ": " : "s:";
     if ( scalar @zone > 0 ) {
@@ -1185,73 +1184,78 @@ sub getline($) {
 my $soa_count;
 
 sub update_serial {
-    my ($i);
-    print "\nUpdating the serial number in the source file...\n" if $chatty;
-    open( my $source, "+<$source_file" )
-      || &give_up(
-        "unable to open $source_file for read/write (to update serial)");
+    for my $f(@sourcefiles)
+    {
+        my $fn = $f->{file};
+        # FIXME support multi source files
+        my ($i);
+        print "\nUpdating the serial number in the source file $fn...\n" if $chatty;
+        open( my $source, "+<", $fn )
+          || &give_up(
+            "unable to open $fn for read/write (to update serial)");
 
-    # Check out the first line as the start of the SOA data. Skip any
-    # prior comments, counting them so that we know how many lines to
-    # copy when copying the SOA data.
+        # Check out the first line as the start of the SOA data. Skip any
+        # prior comments, counting them so that we know how many lines to
+        # copy when copying the SOA data.
 
-    for ( ; ; ) {
+        for ( ; ; ) {
+            $_ = getline $source;
+            last if ( !/^\s*$/ && !/^\s*;/ && !/^\$TTL\s/ );
+            $soa_count++;
+        }
+
+        my ( $host, $hostmaster );
+        my ( $at, $rest ) = split( /\s+/, $_, 2 );
+        my $ttl;
+        if ( $rest =~ /^\d/ ) {
+            ( $ttl, $host, $hostmaster ) =
+              $rest =~ /^(\d+)\s+IN\s+SOA\s+(\S+)\s+(\S+)\s*\(\s*$/;
+        }
+        else {
+            ( $host, $hostmaster ) = $rest =~ /^IN\s+SOA\s+(\S+)\s+(\S+)\s*\(\s*$/;
+        }
+
+        &give_up("malformed SOA record")
+          if ( $at ne "@" || $host eq "" || $hostmaster eq "" );
+
+        # Remember where to write the second line, read it, and fish
+        # out the serial number.
+
+        my ($pos) = tell $source;
         $_ = getline $source;
-        last if ( !/^\s*$/ && !/^\s*;/ && !/^\$TTL\s/ );
-        $soa_count++;
+        my ( $indent, $value ) = /^(\s+)(\d{10})(\s*;.*|)$/;
+        &give_up("malformed serial number line (line 2 of SOA)")
+          if ( $value eq "" );
+
+        # Check out the remaining lines of the SOA record
+
+        for ( $i = 3 ; $i <= 6 ; $i++ ) {
+            $_ = getline $source;
+            my ($check) =
+              ( $i == 6 ) ? /^\s+(\d+)\s*\)(\s*;.*|)$/ : /^\s+(\d+)(\s*;.*|)$/;
+            &give_up("line $i of the SOA record is malformed") if ( $check eq "" );
+        }
+
+        # Calculate the serial number for the first update of
+        # today, allowing for the impending millenium.
+
+        my ($today_serial) = `date +20%y%m%d01`;
+        $today_serial -= 100000000 if ( substr( $today_serial, 2, 2 ) > 90 );
+
+        # remove possible trailing newline (FreeBSD > 3.x ) [CWF]
+        $today_serial =~ s/\n//;
+
+        # If the existing serial number is already >= today's
+        # start, increment it by one. Otherwise use today's start.
+
+        $value = ( $value >= $today_serial ) ? $value + 1 : $today_serial;
+
+        # Re-write the start of the second record with the new serial number.
+
+        seek( $source, $pos, 0 );
+        print $source "$indent$value";
+        close $source;
     }
-
-    my ( $host, $hostmaster );
-    my ( $at, $rest ) = split( /\s+/, $_, 2 );
-    my $ttl;
-    if ( $rest =~ /^\d/ ) {
-        ( $ttl, $host, $hostmaster ) =
-          $rest =~ /^(\d+)\s+IN\s+SOA\s+(\S+)\s+(\S+)\s*\(\s*$/;
-    }
-    else {
-        ( $host, $hostmaster ) = $rest =~ /^IN\s+SOA\s+(\S+)\s+(\S+)\s*\(\s*$/;
-    }
-
-    &give_up("malformed SOA record")
-      if ( $at ne "@" || $host eq "" || $hostmaster eq "" );
-
-    # Remember where to write the second line, read it, and fish
-    # out the serial number.
-
-    my ($pos) = tell $source;
-    $_ = getline $source;
-    my ( $indent, $value ) = /^(\s+)(\d{10})(\s*;.*|)$/;
-    &give_up("malformed serial number line (line 2 of SOA)")
-      if ( $value eq "" );
-
-    # Check out the remaining lines of the SOA record
-
-    for ( $i = 3 ; $i <= 6 ; $i++ ) {
-        $_ = getline $source;
-        my ($check) =
-          ( $i == 6 ) ? /^\s+(\d+)\s*\)(\s*;.*|)$/ : /^\s+(\d+)(\s*;.*|)$/;
-        &give_up("line $i of the SOA record is malformed") if ( $check eq "" );
-    }
-
-    # Calculate the serial number for the first update of
-    # today, allowing for the impending millenium.
-
-    my ($today_serial) = `date +20%y%m%d01`;
-    $today_serial -= 100000000 if ( substr( $today_serial, 2, 2 ) > 90 );
-
-    # remove possible trailing newline (FreeBSD > 3.x ) [CWF]
-    $today_serial =~ s/\n//;
-
-    # If the existing serial number is already >= today's
-    # start, increment it by one. Otherwise use today's start.
-
-    $value = ( $value >= $today_serial ) ? $value + 1 : $today_serial;
-
-    # Re-write the start of the second record with the new serial number.
-
-    seek( $source, $pos, 0 );
-    print $source "$indent$value";
-    close $source;
 }
 
 ##################################################
@@ -1656,7 +1660,7 @@ sub handle_record($) {
                           . "** The first occurrence was in line $nn." );
                 }
 
-                $names{"$fqdn"} = $nline if !$nn || $nn == $used_other;
+                $names{"$fqdn"} = $current_source_line if !$nn || $nn == $used_other;
             }
             else {
                 my ($nn) = $names_v6{"$fqdn"} || 0;
@@ -1672,7 +1676,7 @@ sub handle_record($) {
                           . "** The first occurrence was in line $nn." );
                 }
 
-                $names_v6{"$fqdn"} = $nline      if !$nn;
+                $names_v6{"$fqdn"} = $current_source_line      if !$nn;
                 $names{"$fqdn"}    = $used_other if !$names{"$fqdn"};
             }
         }
@@ -1739,7 +1743,7 @@ sub handle_record($) {
             print $handle ".$thiszone_name."
               if ( substr( $name, -1, 1 ) ne "." );
             print $handle "\n";
-            $addresses{"$addr_normalized"} = $nline
+            $addresses{"$addr_normalized"} = $current_source_line
               if !$addresses{"$addr_normalized"};
         }
     };
@@ -1765,7 +1769,7 @@ sub handle_record($) {
         my ($nn) = $names{"$fqdn"} || 0;
         &check_fqn( $rest, "CNAME" );
         if ( $nn == 0 ) {
-            $names{"$fqdn"} = -$nline;
+            $names{"$fqdn"} = -$current_source_line;
             print $thiszone_handle "$name  $ttl $class  CNAME  $rest\n";
         }
         else {
@@ -1794,7 +1798,7 @@ sub handle_record($) {
                   . "** The first occurrence was in line $nn." );
         }
 
-        $names{"$fqdn"} = $nline if !$nn || $nn == $used_other;
+        $names{"$fqdn"} = $current_source_line if !$nn || $nn == $used_other;
 
         my $do_ptr = sub {
             my ( $params, $name, $rest ) = @_;
@@ -1832,7 +1836,7 @@ sub handle_record($) {
                     print $handle ".$thiszone_name."
                       if ( substr( $rest, -1, 1 ) ne "." );
                     print $handle "\n";
-                    $addresses{"$thisaddress"} = $nline
+                    $addresses{"$thisaddress"} = $current_source_line
                       if !$addresses{"$thisaddress"};
                 }
             }
@@ -2131,7 +2135,7 @@ sub handle_record($) {
             # next time round this loop.
 
             $_ = getline $source;
-            $nline++;
+            $current_source_line++;
             ( $list, my $dummy ) = $_ =~ /^\s*([^;]+)(;.*)?$/;
             $rest = "$list";
             $pref = "  ";
@@ -2164,18 +2168,22 @@ sub handle_record($) {
 #           Generate the zone data               #
 ##################################################
 
-sub generate_zones {
+sub generate_zones($) {
+    my ($file_index) = @_;
+    my $f = $sourcefiles[$file_index];
+    $current_source_file = $f->{file};
+    $current_source_line = 0;
+
     my ($i);
 
     $lastname = "";
-    $nline    = 0;
 
-    print "Generating the zone data...\n" if $chatty;
+    print "Generating the zone data for $f->{file}...\n" if $chatty;
 
     # Open the input file
 
-    open( my $source, "$source_file" )
-      || &give_up("unable to open $source_file");
+    open( my $source, '<', $f->{file} )
+      || &give_up("unable to open $f->{file}");
 
     # Open the output files
 
@@ -2196,7 +2204,7 @@ sub generate_zones {
 
     # Copy the SOA record into all the output files
 
-    for ( $nline = 1 ; $nline <= $soa_count ; $nline++ ) {
+    for ( $current_source_line = 1 ; $current_source_line <= $soa_count ; $current_source_line++ ) {
         $_ = getline $source;
         &print_forward($_);
         &print_reverse($_);
@@ -2217,10 +2225,10 @@ sub generate_zones {
     # by their IP network numbers.
     # This is also sufficient for handling of non byte-aligned nets. (CWF)
 
-    $nline--;
+    $current_source_line--;
     for ( ; ; ) {
         last if !( $_ = getline $source );
-        $nline++;
+        $current_source_line++;
         if (/^;/) { &handle_comment(); next; }
         next if /^\s*$/;
         last if /^\S/;
@@ -2323,7 +2331,7 @@ sub generate_zones {
             else                                { &handle_record($source); }
         }
         last if !( $_ = getline $source );
-        $nline++;
+        $current_source_line++;
     }
 
     # Close all the files
@@ -2479,12 +2487,13 @@ $soa_count = 6;
 &verify();
 &named_conf() if $chatty;
 &update_serial();
-&generate_zones();
+&generate_zones($_)
+    for 0..@sourcefiles-1;
 print "\n" if $errors > 0;
 
 # No line number for subsequent error messages.
 
-$nline = -1;
+$current_source_line = -1;
 
 # If length checks successful, do renames and end happy.
 
