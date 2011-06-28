@@ -2302,6 +2302,7 @@ sub generate_soa($) {
                     }
                 };
 
+                use Data::Dumper; print Dumper [$zone, \@zone];
                 if (
                     defined(
                         my $i = [
