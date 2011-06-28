@@ -2290,7 +2290,7 @@ sub generate_soa($) {
                         {
                             if (
                                 $prefixlen == $params->{rzone}[$i]{prefixlen}
-                                && match_prefix_v6 \@addr,
+                                && match_prefix_ip $params, \@addr,
                                 $params->{rzone}[$i]{prefix}, $params->{words} * $params->{bits}
                               )
                             {
