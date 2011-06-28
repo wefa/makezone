@@ -507,6 +507,7 @@ my $all_wildcards = 1;
 
 my $current_source_line;
 my $current_source_file;
+my $current_source_idx;
 
 $SIG{__DIE__} = sub {
     &remove_temps();
@@ -582,10 +583,12 @@ my @rzone6 = ();
 sub print_reverse {
     my ($i);
     for ( $i = 0 ; $i < scalar @rzone ; $i++ ) {
+        next if $rzone[$i]{soaidx} != $current_source_idx;
         my $handle = $rzone[$i]{handle};
         print $handle $_[0];
     }
     for ( $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
+        next if $rzone6[$i]{soaidx} != $current_source_idx;
         my $handle = $rzone6[$i]{handle};
         print $handle $_[0];
     }
@@ -594,6 +597,7 @@ sub print_reverse {
 sub print_forward {
     my ($i);
     for ( $i = 0 ; $i < scalar @zone ; $i++ ) {
+        next if $zone[$i]{soaidx} != $current_source_idx;
         my $handle = $zone[$i]{handle};
         print $handle $_[0];
     }
@@ -993,7 +997,7 @@ sub unpick_args_addzones {
         );
         my $subnet_name = cname_hack $subnet, $prefixlen;
         $zone->{name} = enddot($subnet_name) . $params->{suffix};
-        $zone->{soaidx} = scalar @sourcefiles;
+        $zone->{soaidx} = @sourcefiles - !!@sourcefiles;
     }
     else {
 
@@ -1010,7 +1014,7 @@ sub unpick_args_addzones {
             $subnet =~ /^([^.]+)/;
             $zone->{file} = $file . ( @l == 1 ? "" : ".$1" );
             $zone->{name} = enddot($subnet) . $params->{suffix};
-            $zone->{soaidx} = scalar @sourcefiles;
+            $zone->{soaidx} = @sourcefiles - !!@sourcefiles;
         }
     }
 }
@@ -1034,7 +1038,7 @@ sub unpick_args {
             ( $zone->{name} = shift @ARGV ) =~
               s/\.$//;    # remove trailing dot if present
             $zone->{file} = shift @ARGV;
-            $zone->{soaidx} = scalar @sourcefiles;
+            $zone->{soaidx} = @sourcefiles - !!@sourcefiles;
         }
         elsif (/^-r$/) {
 
@@ -2175,6 +2179,7 @@ sub generate_zones($) {
     my $f = $sourcefiles[$file_index];
     $current_source_file = $f->{file};
     $current_source_line = 0;
+    $current_source_idx  = $file_index;
 
     my ($i);
 
@@ -2208,7 +2213,6 @@ sub generate_zones($) {
 
     for ( $current_source_line = 1 ; $current_source_line <= $f->{soa_count} ; $current_source_line++ ) {
         $_ = getline $source;
-        # FIXME only do this for files that match the current SOA!
         &print_forward($_);
         &print_reverse($_);
     }
@@ -2244,7 +2248,6 @@ sub generate_zones($) {
         $rest =~ s/^\s+//;          # strip leading white space
         $rest =~ s/\s*(;.*)?$//;    # strip trailing spaces and comments & NL
         if ( $rest eq "" ) {
-            # FIXME only do this for files that match the current SOA!
             &print_forward($_);
             &print_reverse($_);
         }
