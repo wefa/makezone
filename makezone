@@ -2337,6 +2337,7 @@ sub generate_soa($) {
                     );
                     $do_ns->( $ipv4_params, "$a.$b.$c.$d", $prefixlen );
                 }
+                print "AFTER\n";
             }
         }
     }
