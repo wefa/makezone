@@ -2302,7 +2302,7 @@ sub generate_soa($) {
                     }
                 };
 
-                use Data::Dumper; print Dumper [$zone, \@zone];
+                use Data::Dumper; print STDERR Dumper [$zone, \@zone];
                 if (
                     defined(
                         my $i = [
@@ -2312,16 +2312,19 @@ sub generate_soa($) {
                     )
                   )
                 {
+                    print STDERR "name\n";
                     my $h = $zone[$i]{handle};
                     print $h "  $ttl  $class  NS  $ns\n";
                 }
                 elsif ( $zone =~ /(.*:.*)\/(\d+)/ )    # IPv6
                 {
+                    print STDERR "v6\n";
                     $do_ns->( $ipv6_params, $1, $2 );
                 }
                 elsif ( $zone =~
                     /^(\d+)(?:\.(\d+)(?:\.(\d+)(?:\.(\d+))?)?)?(?:\/(\d+))?$/ )
                 {
+                    print STDERR "v4\n";
                     my ( $a, $b, $c, $d, $prefixlen ) = (
                         $1,
                         $2 || 0,
@@ -2337,7 +2340,7 @@ sub generate_soa($) {
                     );
                     $do_ns->( $ipv4_params, "$a.$b.$c.$d", $prefixlen );
                 }
-                print "AFTER\n";
+                print STDERR "AFTER\n";
             }
         }
     }
