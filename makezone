@@ -1528,7 +1528,10 @@ sub handle_record($) {
 
     if ( $name eq "@" ) {
         $name = "$thiszone_name.";
-        $printname = $name if ( substr( $printname, 0, 1 ) ne " " );
+        $printname = $name
+            if
+                substr( $printname, 0, 1 ) ne " "
+                and $thiszone_name eq $zone[$sourcefiles[$current_source_idx]{defaultzone}]{name};
     }
     elsif ( $name =~ /^\*/ ) {
         if ( $name !~ /^\*(\.$name_pattern)*$/o ) {
