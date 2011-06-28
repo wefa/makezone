@@ -1061,9 +1061,9 @@ sub unpick_args {
                     $4 || 0,
                     defined $5 ? $5
                     : (
-                          defined $4 ? 32
-                        : defined $3 ? 24
-                        : defined $2 ? 16
+                          $4 ? 32
+                        : $3 ? 24
+                        : $2 ? 16
                         : 8
                     )
                 );
@@ -2006,7 +2006,7 @@ sub handle_record($) {
                 $3 || 0,
                 $4 || 0,
                 $5
-                  || ( defined $4 ? 32 : defined $3 ? 24 : defined $2 ? 16 : 8 ));
+                  || ( $4 ? 32 : $3 ? 24 : $2 ? 16 : 8 ));
             $do_ns->( $ipv4_params, "$a.$b.$c.$d", $prefixlen );
         }
 
@@ -2328,9 +2328,9 @@ sub generate_soa($) {
                         $4 || 0,
                         $5
                           || (
-                              defined $4 ? 32
-                            : defined $3 ? 24
-                            : defined $2 ? 16
+                              $4 ? 32
+                            : $3 ? 24
+                            : $2 ? 16
                             : 8
                           )
                     );
