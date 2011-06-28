@@ -2504,3 +2504,5 @@ print "\n** Makezones failed.\n";
 exit 99;
 
 # End of makezones
+
+# vim: sw=4 ts=4 et
