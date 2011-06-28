@@ -558,17 +558,21 @@ sub error {
 #       Zone data structures                     #
 ##################################################
 
+my @sourcefiles = ();
+
+# each member is a hash with members file, handle
+
 my @zone = ();
 
-# each member is a hash with members file, name, handle
+# each member is a hash with members file, name, handle, soasource
 
 my @rzone = ();
 
-# each member is a hash with members file, name, prefix, prefixlen, handle
+# each member is a hash with members file, name, prefix, prefixlen, handle, soasource
 
 my @rzone6 = ();
 
-# each member is a hash with members file, name, prefix, prefixlen, handle
+# each member is a hash with members file, name, prefix, prefixlen, handle, soasource
 
 ##################################################
 #       Print line to all reverse zone files     #
