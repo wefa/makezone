@@ -1307,7 +1307,7 @@ my %done_cidr_hack = ();
 # Three associative arrays, %names, %names_v6 and %addresses, are used for checking
 # on the duplication of names and addresses. The check for CNAME and
 # other data is handled by the same mechanism. The values used in the
-# %names array are:
+# %names array's first element are:
 #
 #   n == undef          the name has not yet been seen
 #   n > 0               the name has appeared on one A (or PTR) record
@@ -1315,6 +1315,8 @@ my %done_cidr_hack = ();
 #   $used_dup           the name has appeared on a DUP record
 #   $used_reserve       the name has appeared on a RESERVE record
 #   $used_other         the name has appeared on any other DNS record
+#
+# The second element is a file name.
 #
 # The named values are all large negative numbers.
 #
@@ -1585,19 +1587,19 @@ sub handle_record($) {
     # record, it is an error. Let processing continue, however, to
     # detect other errors.
 
-    if ( $names{"$fqdn"} && $names{"$fqdn"} == $used_reserve ) {
-        &error("$name appeared on a previous RESERVE record.");
+    if ( $names{"$fqdn"} && $names{"$fqdn"}[0] == $used_reserve ) {
+        &error("$name appeared on a previous RESERVE record at FIXME.");
     }
 
     # If the name on this record, explicit or implied, previously
     # appeared on a CNAME record, it is an error. Set the value back
     # to nothing, to prevent multiple complaints.
 
-    if ( $names{"$fqdn"} && $names{"$fqdn"} < 0 && $names{"$fqdn"} > $used_dup )
+    if ( $names{"$fqdn"} && $names{"$fqdn"}[0] < 0 && $names{"$fqdn"}[0] > $used_dup )
     {
-        my $temp = -$names{"$fqdn"};
-        &error("$fqdn appears on a previous CNAME record (line $temp).");
-        $names{"$fqdn"} = "";
+        my $temp = -$names{"$fqdn"}[0];
+        &error("$fqdn appears on a previous CNAME record (file $names{$fqdn}[1] line $temp).");
+        delete $names{"$fqdn"};
     }
 
     # Now we perform individual check which depend on the
@@ -1617,7 +1619,7 @@ sub handle_record($) {
             &error("malformed TXT record - must use double quotes.");
         }
         print $thiszone_handle "$printname  $ttl  $class  TXT  $rest";
-        $names{"$fqdn"} = $used_other if $names{"$fqdn"};
+        $names{"$fqdn"} = [$used_other, undef] if $names{"$fqdn"};
         return;
     }
 
@@ -1639,7 +1641,7 @@ sub handle_record($) {
         if ( $names{"$fqdn"} ) {
             &error("reserved name $name previously used.");
         }
-        else { $names{"$fqdn"} = $used_reserve; }
+        else { $names{"$fqdn"}[0] = [$used_reserve, undef]; }
         return;
     }
 
@@ -1654,7 +1656,7 @@ sub handle_record($) {
 
         if ( !$reverse_only ) {
             if ( $params eq $ipv4_params ) {
-                my ($nn) = $names{"$fqdn"} || 0;
+                my ($nn) = $names{"$fqdn"}[0] || 0;
                 if (   $duplicate_name_check
                     && $printname !~ /^\s*$/
                     && $nn > 0
@@ -1663,13 +1665,13 @@ sub handle_record($) {
                     return
                       if $ifndef;
                     &error( "unexpected duplicate name.\n"
-                          . "** The first occurrence was in line $nn." );
+                          . "** The first occurrence was in file $names{$fqdn}[1] line $nn." );
                 }
 
-                $names{"$fqdn"} = $current_source_line if !$nn || $nn == $used_other;
+                $names{"$fqdn"} = [$current_source_line, $current_source_file] if !$nn || $nn == $used_other;
             }
             else {
-                my ($nn) = $names_v6{"$fqdn"} || 0;
+                my ($nn) = $names_v6{"$fqdn"}[0] || 0;
 
                 if (   $duplicate_name_check
                     && $printname !~ /^\s*$/
@@ -1679,11 +1681,11 @@ sub handle_record($) {
                     return
                       if $ifndef;
                     &error( "unexpected duplicate name.\n"
-                          . "** The first occurrence was in line $nn." );
+                          . "** The first occurrence was in file $names_v6{$fqdn}[1] line $nn." );
                 }
 
-                $names_v6{"$fqdn"} = $current_source_line      if !$nn;
-                $names{"$fqdn"}    = $used_other if !$names{"$fqdn"};
+                $names_v6{"$fqdn"} = [$current_source_line, $current_source_file]      if !$nn;
+                $names{"$fqdn"}    = [$used_other, undef] if !$names{"$fqdn"};
             }
         }
         if ( $params eq $ipv4_params ) {
@@ -1706,7 +1708,7 @@ sub handle_record($) {
                 &error(
 "duplicate IP address $addr_normalized specified for a PTR record.\n"
                       . "** Use the >M flag if multiple PTR records are required.\n"
-                      . "** The first occurrence was in line $addresses{$addr_normalized}."
+                      . "** The first occurrence was in file $addresses{$addr_normalized}[1] line $addresses{$addr_normalized}[0]."
                 );
             }
         }
@@ -1750,7 +1752,7 @@ sub handle_record($) {
             print $handle ".$thiszone_name."
               if ( substr( $name, -1, 1 ) ne "." );
             print $handle "\n";
-            $addresses{"$addr_normalized"} = $current_source_line
+            $addresses{"$addr_normalized"} = [$current_source_line, $current_source_file]
               if !$addresses{"$addr_normalized"};
         }
     };
@@ -1773,10 +1775,10 @@ sub handle_record($) {
     # set back to null to prevent another one).
 
     if ( $type eq "CNAME" ) {
-        my ($nn) = $names{"$fqdn"} || 0;
+        my ($nn) = $names{"$fqdn"}[0] || 0;
         &check_fqn( $rest, "CNAME" );
         if ( $nn == 0 ) {
-            $names{"$fqdn"} = -$current_source_line;
+            $names{"$fqdn"} = [-$current_source_line, $current_source_file];
             print $thiszone_handle "$name  $ttl $class  CNAME  $rest\n";
         }
         else {
@@ -1798,14 +1800,14 @@ sub handle_record($) {
 
     if ( $type eq "PTR" ) {
         my ( $net, $rzone );
-        my ($nn) = $names{"$fqdn"} || 0;
+        my ($nn) = $names{"$fqdn"}[0] || 0;
 
         if ( $duplicate_name_check && $printname !~ /^\s*$/ && $nn > 0 ) {
             &error( "unexpected duplicate name.\n"
                   . "** The first occurrence was in line $nn." );
         }
 
-        $names{"$fqdn"} = $current_source_line if !$nn || $nn == $used_other;
+        $names{"$fqdn"} = [$current_source_line, $current_source_file] if !$nn || $nn == $used_other;
 
         my $do_ptr = sub {
             my ( $params, $name, $rest ) = @_;
@@ -1827,7 +1829,7 @@ sub handle_record($) {
                     &error(
 "duplicate IP address $thisaddress specified for a PTR record.\n"
                           . "** Use the >M flag if multiple PTR records are required.\n"
-                          . "** The first occurrence was in line $addresses{$thisaddress}."
+                          . "** The first occurrence was in file $addresses{$thisaddress}[1] line $addresses{$thisaddress}[0]."
                     );
                 }
                 else {
@@ -1843,7 +1845,7 @@ sub handle_record($) {
                     print $handle ".$thiszone_name."
                       if ( substr( $rest, -1, 1 ) ne "." );
                     print $handle "\n";
-                    $addresses{"$thisaddress"} = $current_source_line
+                    $addresses{"$thisaddress"} = [$current_source_line, $current_source_file]
                       if !$addresses{"$thisaddress"};
                 }
             }
@@ -1871,7 +1873,7 @@ sub handle_record($) {
 
     if ( $type eq "DUP" ) {
         &error("malformed DUP record (text after DUP).") if $rest !~ /^$/;
-        $names{"$fqdn"} = $used_dup;
+        $names{"$fqdn"} = [$used_dup, undef];
         return;
     }
 
@@ -1881,7 +1883,7 @@ sub handle_record($) {
     # entional value. This may be overridden by subsequent records
     # such as A or PTR.
 
-    $names{"$fqdn"} = $used_other if !$names{"$fqdn"};
+    $names{"$fqdn"} = [$used_other, undef] if !$names{"$fqdn"};
 
     # Type SRV -- right now we just copy it to output [CWF]
 
@@ -2238,7 +2240,7 @@ sub generate_soa($) {
     # Record the fact that the name "@" has been used, for a record
     # of type "other". This will stop a CNAME of that name.
 
-    $names{"$_."} = $used_other for map { $_->{name} } @zone;
+    $names{"$_."} = [$used_other, undef] for map { $_->{name} } @zone;
 
     # Copy all the NS records for these zones to all the outputs. Stop
     # on reaching a non-NS record or a record with a name field. Skip

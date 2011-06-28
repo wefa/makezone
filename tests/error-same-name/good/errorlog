@@ -20,7 +20,7 @@ Generating the SOA data for src.tmp...
 Generating the zone data for src.tmp...
 
 ** Makezones: unexpected duplicate name.
-** The first occurrence was in line 13.
+** The first occurrence was in file src.tmp line 13.
    At line 14 of src.tmp:
    router			IN	A	192.0.2.2
 
