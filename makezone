@@ -1157,8 +1157,9 @@ sub encode_punycode {
     return $domain;
 }
 
-sub getline {
-    my $s = scalar <SOURCE>;
+sub getline($) {
+    my ($fh) = @_;
+    my $s = scalar <$fh>;
     return $s
       if not defined $s;
     # handle the >8 flag (unicode)
@@ -1180,7 +1181,7 @@ my $soa_count;
 sub update_serial {
     my ($i);
     print "\nUpdating the serial number in the source file...\n" if $chatty;
-    open( SOURCE, "+<$source_file" )
+    open( my $source, "+<$source_file" )
       || &give_up(
         "unable to open $source_file for read/write (to update serial)");
 
@@ -1189,7 +1190,7 @@ sub update_serial {
     # copy when copying the SOA data.
 
     for ( ; ; ) {
-        $_ = getline;
+        $_ = getline $source;
         last if ( !/^\s*$/ && !/^\s*;/ && !/^\$TTL\s/ );
         $soa_count++;
     }
@@ -1211,8 +1212,8 @@ sub update_serial {
     # Remember where to write the second line, read it, and fish
     # out the serial number.
 
-    my ($pos) = tell SOURCE;
-    $_ = getline;
+    my ($pos) = tell $source;
+    $_ = getline $source;
     my ( $indent, $value ) = /^(\s+)(\d{10})(\s*;.*|)$/;
     &give_up("malformed serial number line (line 2 of SOA)")
       if ( $value eq "" );
@@ -1220,7 +1221,7 @@ sub update_serial {
     # Check out the remaining lines of the SOA record
 
     for ( $i = 3 ; $i <= 6 ; $i++ ) {
-        $_ = getline;
+        $_ = getline $source;
         my ($check) =
           ( $i == 6 ) ? /^\s+(\d+)\s*\)(\s*;.*|)$/ : /^\s+(\d+)(\s*;.*|)$/;
         &give_up("line $i of the SOA record is malformed") if ( $check eq "" );
@@ -1242,9 +1243,9 @@ sub update_serial {
 
     # Re-write the start of the second record with the new serial number.
 
-    seek( SOURCE, $pos, 0 );
-    print SOURCE "$indent$value";
-    close SOURCE;
+    seek( $source, $pos, 0 );
+    print $source "$indent$value";
+    close $source;
 }
 
 ##################################################
@@ -1334,7 +1335,8 @@ sub normalize_name {
     return $name;
 }
 
-sub handle_record {
+sub handle_record($) {
+    my ($source) = @_;
     my $forwards_only = 0;
     my $reverse_only = 0;
     my $external_net = 0;
@@ -2122,7 +2124,7 @@ sub handle_record {
             # Read in the next line, which contains more services, for the
             # next time round this loop.
 
-            $_ = getline;
+            $_ = getline $source;
             $nline++;
             ( $list, my $dummy ) = $_ =~ /^\s*([^;]+)(;.*)?$/;
             $rest = "$list";
@@ -2166,7 +2168,7 @@ sub generate_zones {
 
     # Open the input file
 
-    open( SOURCE, "$source_file" )
+    open( my $source, "$source_file" )
       || &give_up("unable to open $source_file");
 
     # Open the output files
@@ -2189,7 +2191,7 @@ sub generate_zones {
     # Copy the SOA record into all the output files
 
     for ( $nline = 1 ; $nline <= $soa_count ; $nline++ ) {
-        $_ = getline;
+        $_ = getline $source;
         &print_forward($_);
         &print_reverse($_);
     }
@@ -2211,7 +2213,7 @@ sub generate_zones {
 
     $nline--;
     for ( ; ; ) {
-        last if !( $_ = getline );
+        last if !( $_ = getline $source );
         $nline++;
         if (/^;/) { &handle_comment(); next; }
         next if /^\s*$/;
@@ -2312,15 +2314,15 @@ sub generate_zones {
                 &error("invalid line - semicolon omitted?");
             }
             elsif ( substr( $_, 0, 1 ) eq ";" ) { &handle_comment(); }
-            else                                { &handle_record(); }
+            else                                { &handle_record($source); }
         }
-        last if !( $_ = getline );
+        last if !( $_ = getline $source );
         $nline++;
     }
 
     # Close all the files
 
-    close SOURCE;
+    close $source;
     for ( $i = 0 ; $i < scalar @zone ; $i++ )  { close( $zone[$i]{handle} ); }
     for ( $i = 0 ; $i < scalar @rzone ; $i++ ) { close( $rzone[$i]{handle} ); }
     for ( $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
