@@ -564,15 +564,15 @@ my @sourcefiles = ();
 
 my @zone = ();
 
-# each member is a hash with members file, name, handle, soasource
+# each member is a hash with members file, name, handle, soaidx
 
 my @rzone = ();
 
-# each member is a hash with members file, name, prefix, prefixlen, handle, soasource
+# each member is a hash with members file, name, prefix, prefixlen, handle, soaidx
 
 my @rzone6 = ();
 
-# each member is a hash with members file, name, prefix, prefixlen, handle, soasource
+# each member is a hash with members file, name, prefix, prefixlen, handle, soaidx
 
 ##################################################
 #       Print line to all reverse zone files     #
@@ -992,7 +992,7 @@ sub unpick_args_addzones {
         );
         my $subnet_name = cname_hack $subnet, $prefixlen;
         $zone->{name} = enddot($subnet_name) . $params->{suffix};
-        $zone->{soasource} = scalar @sourcefiles;
+        $zone->{soaidx} = scalar @sourcefiles;
     }
     else {
 
@@ -1009,7 +1009,7 @@ sub unpick_args_addzones {
             $subnet =~ /^([^.]+)/;
             $zone->{file} = $file . ( @l == 1 ? "" : ".$1" );
             $zone->{name} = enddot($subnet) . $params->{suffix};
-            $zone->{soasource} = scalar @sourcefiles;
+            $zone->{soaidx} = scalar @sourcefiles;
         }
     }
 }
@@ -1033,7 +1033,7 @@ sub unpick_args {
             ( $zone->{name} = shift @ARGV ) =~
               s/\.$//;    # remove trailing dot if present
             $zone->{file} = shift @ARGV;
-            $zone->{soasource} = scalar @sourcefiles;
+            $zone->{soaidx} = scalar @sourcefiles;
         }
         elsif (/^-r$/) {
 
