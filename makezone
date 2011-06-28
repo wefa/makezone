@@ -2272,6 +2272,8 @@ sub generate_soa($) {
         else {
             while ( $rest ne "" ) {
                 ( my $zone, $rest ) = split( /\s+/, $rest, 2 );
+                $rest = ""
+                    if not defined $rest;
 
                 my $do_ns = sub {
                     my ( $params, $addr, $prefixlen ) = @_;
