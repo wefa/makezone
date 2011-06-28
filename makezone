@@ -562,7 +562,7 @@ sub error {
 
 my @sourcefiles = ();
 
-# each member is a hash with members file, handle, soa_count, idx
+# each member is a hash with members file, handle, soa_count, defaultzone, idx
 
 my @zone = ();
 
@@ -1079,7 +1079,7 @@ sub unpick_args {
             &give_up("unknown option \"$ARGV[0]\"");
         }
         else {
-            push @sourcefiles, { file => $_ };
+            push @sourcefiles, { file => $_, defaultzone => scalar @zone };
         }
     }
 
@@ -1327,7 +1327,7 @@ my %done_cidr_hack = ();
 
 my $lastname;
 my $lastwaserror;
-my $default_zone = 0;
+my $default_zone;
 
 sub normalize_name {
     my ($name) = @_;
@@ -1745,6 +1745,7 @@ sub handle_record($) {
                 int( $params->{rzone}[$rzone]{prefixlen} / $params->{revbits} )
                   * $params->{revbits}
             );
+
             print $handle "  $ttl  $class  PTR  $name";
             print $handle ".$thiszone_name."
               if ( substr( $name, -1, 1 ) ne "." );
@@ -2174,24 +2175,8 @@ sub handle_record($) {
 #           Generate the zone data               #
 ##################################################
 
-sub generate_zones($) {
-    my ($file_index) = @_;
-    my $f = $sourcefiles[$file_index];
-    $current_source_file = $f->{file};
-    $current_source_line = 0;
-    $current_source_idx  = $file_index;
-
-    my ($i);
-
-    $lastname = "";
-
-    print "Generating the zone data for $f->{file}...\n" if $chatty;
-
-    # Open the input file
-
-    open( my $source, '<', $f->{file} )
-      || &give_up("unable to open $f->{file}");
-
+sub open_out() {
+    my $i;
     # Open the output files
 
     for ( $i = 0 ; $i < scalar @zone ; $i++ ) {
@@ -2208,6 +2193,39 @@ sub generate_zones($) {
         open( $rzone6[$i]{handle}, ">$rzone6[$i]{file}.new" )
           || &give_up("unable to open $rzone6[$i]{file}.new");
     }
+}
+
+sub close_out() {
+    my $i;
+    # Close all the files
+
+    for ( $i = 0 ; $i < scalar @zone ; $i++ )  { close( $zone[$i]{handle} ); }
+    for ( $i = 0 ; $i < scalar @rzone ; $i++ ) { close( $rzone[$i]{handle} ); }
+    for ( $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
+        close( $rzone6[$i]{handle} );
+    }
+}
+
+sub generate_soa($) {
+    my ($file_index) = @_;
+    my $f = $sourcefiles[$file_index];
+    $current_source_file = $f->{file};
+    $current_source_line = 0;
+    $current_source_idx  = $file_index;
+    $default_zone        = $f->{defaultzone};
+    undef $default_zone
+        if $default_zone >= @zone;
+
+    my ($i);
+
+    $lastname = "";
+
+    print "Generating the SOA data for $f->{file}...\n" if $chatty;
+
+    # Open the input file
+
+    open( my $source, '<', $f->{file} )
+      || &give_up("unable to open $f->{file}");
 
     # Copy the SOA record into all the output files
 
@@ -2322,6 +2340,51 @@ sub generate_zones($) {
         }
     }
 
+    close $source;
+}
+
+sub generate_zones($) {
+    my ($file_index) = @_;
+    my $f = $sourcefiles[$file_index];
+    $current_source_file = $f->{file};
+    $current_source_line = 0;
+    $current_source_idx  = $file_index;
+    $default_zone        = $f->{defaultzone};
+    undef $default_zone
+        if $default_zone >= @zone;
+
+    my ($i);
+
+    $lastname = "";
+
+    print "Generating the zone data for $f->{file}...\n" if $chatty;
+
+    # Open the input file
+
+    open( my $source, '<', $f->{file} )
+      || &give_up("unable to open $f->{file}");
+
+    # Skip the SOA record
+
+    for ( $current_source_line = 1 ; $current_source_line <= $f->{soa_count} ; $current_source_line++ ) {
+        getline $source;
+    }
+
+    # Skip all the NS records
+
+    $current_source_line--;
+    for ( ; ; ) {
+        last if !( $_ = getline $source );
+        $current_source_line++;
+        if (/^;/) { next; }
+        next if /^\s*$/;
+        last if /^\S/;
+
+        my ( $ttl, $class, $ns, $rest ) =
+          /^\s+(\d+\s+|)(IN\s+|)NS\s+(\S+)(|\s+.+)$/;
+        last if $ns eq "";
+    }
+
     # OK, now we have the first general record in $_. We can now scan
     # the rest of the file, processing as required. We do a check on
     # the first character of the line, because it is easy in moments
@@ -2341,14 +2404,7 @@ sub generate_zones($) {
         $current_source_line++;
     }
 
-    # Close all the files
-
     close $source;
-    for ( $i = 0 ; $i < scalar @zone ; $i++ )  { close( $zone[$i]{handle} ); }
-    for ( $i = 0 ; $i < scalar @rzone ; $i++ ) { close( $rzone[$i]{handle} ); }
-    for ( $i = 0 ; $i < scalar @rzone6 ; $i++ ) {
-        close( $rzone6[$i]{handle} );
-    }
 }
 
 ##################################################
@@ -2493,8 +2549,12 @@ $errors    = 0;
 &verify();
 &named_conf() if $chatty;
 &update_serial();
+&open_out();
+&generate_soa($_)
+    for 0..@sourcefiles-1;
 &generate_zones($_)
     for 0..@sourcefiles-1;
+&close_out();
 print "\n" if $errors > 0;
 
 # No line number for subsequent error messages.

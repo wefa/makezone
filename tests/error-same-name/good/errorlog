@@ -1,5 +1,5 @@
 
-Makezones 0.22i [11-JAN-11]
+Makezones 0.22j [17-JUN-11]
 Generating DNS zone files from src.tmp.
   Forward zone file:  out/db.org.example.lab (lab.example.org)
   Reverse zone file:  out/db.192.0.2 (2.0.192.IN-ADDR.ARPA)
@@ -16,6 +16,7 @@ zone "2.0.192.IN-ADDR.ARPA" {
 };
 
 Updating the serial number in the source file src.tmp...
+Generating the SOA data for src.tmp...
 Generating the zone data for src.tmp...
 
 ** Makezones: unexpected duplicate name.
