@@ -1076,7 +1076,7 @@ sub unpick_args {
             }
         }
         elsif (/^-/) {
-            &give_up("unknown option \"$ARGV[0]\"");
+            &give_up("unknown option \"$_\"");
         }
         else {
             push @sourcefiles, { file => $_, defaultzone => scalar @zone };
