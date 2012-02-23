@@ -67,3 +67,5 @@ Makefile:
 	echo You have no makefile. This is OK.
 named.conf:
 	echo You have no named.conf. This is OK.
+named.root:
+	echo You have no named.root. This is OK.
