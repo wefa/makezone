@@ -982,7 +982,7 @@ sub unpick_args_addzones {
       if ( $prefixlen < 0
         || $prefixlen > $params->{bits} * $params->{words} );
 
-    if ( $prefixlen > $params->{bits} * $params->{words} - $params->{revbits} )
+    if ( $prefixlen > $params->{bits} * $params->{words} - $params->{revbits} && $prefixlen < $params->{bits} * $params->{words} )
     {
 
         # detect a "CNAME delegation"
