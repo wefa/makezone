@@ -980,7 +980,7 @@ sub unpick_args_addzones {
 
     &give_up("bad prefix length $prefixlen")
       if ( $prefixlen < 0
-        || $prefixlen >= $params->{bits} * $params->{words} );
+        || $prefixlen > $params->{bits} * $params->{words} );
 
     if ( $prefixlen > $params->{bits} * $params->{words} - $params->{revbits} )
     {
@@ -1607,21 +1607,21 @@ sub handle_record($) {
 
     # Now we perform individual check which depend on the
     # record's type field. We support only the following types:
-    # A, NS, CNAME, PTR, HINFO, MX, TXT, WKS, RP, SRV, and the special
+    # A, NS, CNAME, PTR, HINFO, MX, TXT, SPF, WKS, RP, SRV, and the special
     # DUP (invented for makezones).
 
-    # For all except TXT, we must ignore trailing spaces and anything
+    # For all except TXT and SPF, we must ignore trailing spaces and anything
     # following the first semicolon on the line, since that introduces
     # a comment. This is not quite so simple for TXT, because of the
-    # quotes, so we handle TXT separately.
+    # quotes, so we handle TXT and SPF separately.
 
     # Type TXT - arbitrary descriptive text, enclosed in double quotes
 
-    if ( $type eq "TXT" ) {
+    if ( $type eq "TXT" or $type eq "SPF" ) {
         if ( $rest !~ /^\".*\"\s*(;.*)?$/ ) {
-            &error("malformed TXT record - must use double quotes.");
+            &error("malformed $type record - must use double quotes.");
         }
-        print $thiszone_handle "$printname  $ttl  $class  TXT  $rest";
+        print $thiszone_handle "$printname  $ttl  $class  $type  $rest";
         $names{"$fqdn"} = [$used_other, undef] if $names{"$fqdn"};
         return;
     }
