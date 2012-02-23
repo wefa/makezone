@@ -2,7 +2,7 @@ SAVEPATH=/dat/sicher/namedb-example
 SAVEHOST=192.168.51.1
 FTPPATH=/dat/sicher/conf
 AWK=/usr/bin/awk
-SAVESCRIPT=./tftpout.sh
+SAVESCRIPT=./tftpout.sh.sample
 
 
 SCRIPTS=Makefile makezone beautify.awk $(SAVESCRIPT) make-localhost \
