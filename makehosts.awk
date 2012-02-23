@@ -78,6 +78,8 @@ END	  {
               
 
 function append_alias(idx, string, type) {
+	  if(string == "@") return;
+	  if(substr(string, 1, 2) == "@.") string = substr(string, 3);
 	  if (type == 0) 
           { if (idx in ALIAS) 
             { ALIAS[idx] = ALIAS [idx] " " string;
