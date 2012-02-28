@@ -22,9 +22,12 @@ ALLSRCES=$(SRCS) $(CONFS) $(SCRIPTS)
 all: nameserver hosts backup
 
 .out.sav:
-	${SAVESCRIPT} ${.IMPSRC} $(SAVEHOST)
-	cp $(.IMPSRC) $(SAVEPATH)
-	touch ${.TARGET}
+	${SAVESCRIPT} $< $(SAVEHOST)
+	cp $< $(SAVEPATH)
+	touch $@
+#bsd	${SAVESCRIPT} ${.IMPSRC} $(SAVEHOST)
+#bsd	cp $(.IMPSRC) $(SAVEPATH)
+#bsd	touch ${.TARGET}
 
 localhost.rev: PROTO.localhost.rev /etc/rc.conf make-localhost Makefile
 	sh make-localhost
@@ -35,7 +38,7 @@ nameserver: db.example Makefile $(CONFS)
 
 db.example: example.src $(SCRIPTS)
 	cp example.src example.src.old
-	./makezone -short example.src \
+	env AWK=$(AWK) ./makezone -short example.src \
 		-f lab.example.org                            db.org.example.lab                           \
 		-f sub.lab.example.org                        db.org.example.lab.sub                       \
 		-r 192.0.2.0/24                               db.192.0.2.0.24                              \
@@ -56,6 +59,7 @@ hosts:  $(SRCS) makehosts.awk sorthosts.pl Makefile
 	chmod go+r /etc/hosts-full
 
 backup: $(ALLSRCES:C/\$/.sav/) 
+#GNU make: backup: $(patsubst %,%.sav,$(ALLSRCES))
 
 #backup: $(ALLSRCES:C/(.*)/saveflags\/\1.sav/) 
 
