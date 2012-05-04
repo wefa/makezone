@@ -1,4 +1,5 @@
 #!/bin/sh
+
 #kill -HUP `cat /var/run/named.pid`
 rndc reload
 #/etc/rc.d/named restart
