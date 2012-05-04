@@ -1,57 +1,57 @@
 ; Domainsource lab.example.org
 $TTL 300
 @	300	IN	SOA	login.lab.example.org. me.lab.example.org. (
-				2011010743	;serial
+				2012050401	;serial
 				60		;Refresh
 				30		;Retry
 				604800		;Expire
 				300 )		;Minimum
-			IN	NS	  ns1.lab.example.org.
-			IN	NS	  ns2.lab.example.org.
+				IN	NS	ns1.lab.example.org.
+				IN	NS	ns2.lab.example.org.
 ; small CIDR delegation
-32/27.17		IN	NS	  ns1.subdomain.lab.example.org.
-32.17			IN	CNAME	  32.32/27.17.168.192.IN-ADDR.ARPA.
-33.17			IN	CNAME	  33.32/27.17.168.192.IN-ADDR.ARPA.
-34.17			IN	CNAME	  34.32/27.17.168.192.IN-ADDR.ARPA.
-35.17			IN	CNAME	  35.32/27.17.168.192.IN-ADDR.ARPA.
-36.17			IN	CNAME	  36.32/27.17.168.192.IN-ADDR.ARPA.
-37.17			IN	CNAME	  37.32/27.17.168.192.IN-ADDR.ARPA.
-38.17			IN	CNAME	  38.32/27.17.168.192.IN-ADDR.ARPA.
-39.17			IN	CNAME	  39.32/27.17.168.192.IN-ADDR.ARPA.
-40.17			IN	CNAME	  40.32/27.17.168.192.IN-ADDR.ARPA.
-41.17			IN	CNAME	  41.32/27.17.168.192.IN-ADDR.ARPA.
-42.17			IN	CNAME	  42.32/27.17.168.192.IN-ADDR.ARPA.
-43.17			IN	CNAME	  43.32/27.17.168.192.IN-ADDR.ARPA.
-44.17			IN	CNAME	  44.32/27.17.168.192.IN-ADDR.ARPA.
-45.17			IN	CNAME	  45.32/27.17.168.192.IN-ADDR.ARPA.
-46.17			IN	CNAME	  46.32/27.17.168.192.IN-ADDR.ARPA.
-47.17			IN	CNAME	  47.32/27.17.168.192.IN-ADDR.ARPA.
-48.17			IN	CNAME	  48.32/27.17.168.192.IN-ADDR.ARPA.
-49.17			IN	CNAME	  49.32/27.17.168.192.IN-ADDR.ARPA.
-50.17			IN	CNAME	  50.32/27.17.168.192.IN-ADDR.ARPA.
-51.17			IN	CNAME	  51.32/27.17.168.192.IN-ADDR.ARPA.
-52.17			IN	CNAME	  52.32/27.17.168.192.IN-ADDR.ARPA.
-53.17			IN	CNAME	  53.32/27.17.168.192.IN-ADDR.ARPA.
-54.17			IN	CNAME	  54.32/27.17.168.192.IN-ADDR.ARPA.
-55.17			IN	CNAME	  55.32/27.17.168.192.IN-ADDR.ARPA.
-56.17			IN	CNAME	  56.32/27.17.168.192.IN-ADDR.ARPA.
-57.17			IN	CNAME	  57.32/27.17.168.192.IN-ADDR.ARPA.
-58.17			IN	CNAME	  58.32/27.17.168.192.IN-ADDR.ARPA.
-59.17			IN	CNAME	  59.32/27.17.168.192.IN-ADDR.ARPA.
-60.17			IN	CNAME	  60.32/27.17.168.192.IN-ADDR.ARPA.
-61.17			IN	CNAME	  61.32/27.17.168.192.IN-ADDR.ARPA.
-62.17			IN	CNAME	  62.32/27.17.168.192.IN-ADDR.ARPA.
-63.17			IN	CNAME	  63.32/27.17.168.192.IN-ADDR.ARPA.
-32/27.17		IN	NS	  ns2.subdomain.lab.example.org.
+32/27.17    IN  NS  ns1.subdomain.lab.example.org.
+32.17    IN  CNAME  32.32/27.17.168.192.IN-ADDR.ARPA.
+33.17    IN  CNAME  33.32/27.17.168.192.IN-ADDR.ARPA.
+34.17    IN  CNAME  34.32/27.17.168.192.IN-ADDR.ARPA.
+35.17    IN  CNAME  35.32/27.17.168.192.IN-ADDR.ARPA.
+36.17    IN  CNAME  36.32/27.17.168.192.IN-ADDR.ARPA.
+37.17    IN  CNAME  37.32/27.17.168.192.IN-ADDR.ARPA.
+38.17    IN  CNAME  38.32/27.17.168.192.IN-ADDR.ARPA.
+39.17    IN  CNAME  39.32/27.17.168.192.IN-ADDR.ARPA.
+40.17    IN  CNAME  40.32/27.17.168.192.IN-ADDR.ARPA.
+41.17    IN  CNAME  41.32/27.17.168.192.IN-ADDR.ARPA.
+42.17    IN  CNAME  42.32/27.17.168.192.IN-ADDR.ARPA.
+43.17    IN  CNAME  43.32/27.17.168.192.IN-ADDR.ARPA.
+44.17    IN  CNAME  44.32/27.17.168.192.IN-ADDR.ARPA.
+45.17    IN  CNAME  45.32/27.17.168.192.IN-ADDR.ARPA.
+46.17    IN  CNAME  46.32/27.17.168.192.IN-ADDR.ARPA.
+47.17    IN  CNAME  47.32/27.17.168.192.IN-ADDR.ARPA.
+48.17    IN  CNAME  48.32/27.17.168.192.IN-ADDR.ARPA.
+49.17    IN  CNAME  49.32/27.17.168.192.IN-ADDR.ARPA.
+50.17    IN  CNAME  50.32/27.17.168.192.IN-ADDR.ARPA.
+51.17    IN  CNAME  51.32/27.17.168.192.IN-ADDR.ARPA.
+52.17    IN  CNAME  52.32/27.17.168.192.IN-ADDR.ARPA.
+53.17    IN  CNAME  53.32/27.17.168.192.IN-ADDR.ARPA.
+54.17    IN  CNAME  54.32/27.17.168.192.IN-ADDR.ARPA.
+55.17    IN  CNAME  55.32/27.17.168.192.IN-ADDR.ARPA.
+56.17    IN  CNAME  56.32/27.17.168.192.IN-ADDR.ARPA.
+57.17    IN  CNAME  57.32/27.17.168.192.IN-ADDR.ARPA.
+58.17    IN  CNAME  58.32/27.17.168.192.IN-ADDR.ARPA.
+59.17    IN  CNAME  59.32/27.17.168.192.IN-ADDR.ARPA.
+60.17    IN  CNAME  60.32/27.17.168.192.IN-ADDR.ARPA.
+61.17    IN  CNAME  61.32/27.17.168.192.IN-ADDR.ARPA.
+62.17    IN  CNAME  62.32/27.17.168.192.IN-ADDR.ARPA.
+63.17    IN  CNAME  63.32/27.17.168.192.IN-ADDR.ARPA.
+32/27.17    IN  NS  ns2.subdomain.lab.example.org.
 ; regular delegation
-16			IN	NS	  ns1.subdomain.lab.example.org.
-16			IN	NS	  ns2.subdomain.lab.example.org.
+16    IN  NS  ns1.subdomain.lab.example.org.
+16    IN  NS  ns2.subdomain.lab.example.org.
 ; big CIDR delegation
-20			IN	NS	  ns1.subdomain.lab.example.org.
-21			IN	NS	  ns1.subdomain.lab.example.org.
-22			IN	NS	  ns1.subdomain.lab.example.org.
-23			IN	NS	  ns1.subdomain.lab.example.org.
-20			IN	NS	  ns2.subdomain.lab.example.org.
-21			IN	NS	  ns2.subdomain.lab.example.org.
-22			IN	NS	  ns2.subdomain.lab.example.org.
-23			IN	NS	  ns2.subdomain.lab.example.org.
+20    IN  NS  ns1.subdomain.lab.example.org.
+21    IN  NS  ns1.subdomain.lab.example.org.
+22    IN  NS  ns1.subdomain.lab.example.org.
+23    IN  NS  ns1.subdomain.lab.example.org.
+20    IN  NS  ns2.subdomain.lab.example.org.
+21    IN  NS  ns2.subdomain.lab.example.org.
+22    IN  NS  ns2.subdomain.lab.example.org.
+23    IN  NS  ns2.subdomain.lab.example.org.

@@ -1,7 +1,7 @@
 #
 # /etc/hosts generated automatically by makehosts.awk
 # from named/makezone source file /home/rpolzer/work/makezone/tests/ipv6/src.tmp
-# at Mon Jan 17 09:02:38 CET 2011
+# at Fri May  4 17:02:09 CEST 2012
 # 
 2001:db8:0001::1                       	router.lab.example.org router
 2001:db8:0001::2                       	router-failover1.lab.example.org router-failover1

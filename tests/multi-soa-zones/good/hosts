@@ -1,7 +1,7 @@
 #
 # /etc/hosts generated automatically by makehosts.awk
-# from named/makezone source file /home/rpolzer/work/vodafone-makezone/tests/multi-soa-zones/src.2.tmp
-# at Fri Jun 17 09:29:51 CEST 2011
+# from named/makezone source file /home/rpolzer/work/makezone/tests/multi-soa-zones/src.2.tmp
+# at Fri May  4 17:02:09 CEST 2012
 # 
 192.0.2.1                              	host1.lab.example.org host1
 192.0.2.2                              	host1.lab.example.org host1

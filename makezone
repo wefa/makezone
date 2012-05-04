@@ -117,11 +117,11 @@ my $create_delegated_subnet_cnames = 1;
 # I wrote a few years ago. Every zone file gets piped through
 # $postprocess_command;
 
-my $postprocess_zonefiles = 1;
-
+#my $postprocess_command = undef; # don't postprocess
 #my $postprocess_command = "/usr/xpg4/bin/awk -f beautify.awk";
 #my $postprocess_command = "/usr/bin/awk -f beautify.awk";
-my $postprocess_command = ($ENV{AWK} || "awk") . " -f beautify.awk";
+#my $postprocess_command = ($ENV{AWK} || "awk") . " -f beautify.awk";
+my $postprocess_command = $ENV{MAKEZONE_POSTPROCESS_COMMAND};
 
 # allow wildcards of all types. If zero, only MX wildcards are possible
 my $all_wildcards = 1;
@@ -2503,7 +2503,7 @@ sub compare_lengths {
 sub rename_zones {
     my ($i);
     my ($xt) = ".new";
-    if ($postprocess_zonefiles) {
+    if (defined $postprocess_command and length $postprocess_command) {
         my ($xt2) = ".new2";
         print "postprocessing the new zone files...\n"
           if $chatty;

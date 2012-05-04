@@ -1,5 +1,5 @@
 
-Makezones 0.22j [17-JUN-11]
+Makezones 0.23 [12-APR-12]
 Generating DNS zone files from src.tmp.
   Forward zone file:  out/db.org.example.lab (lab.example.org)
   Reverse zone file:  out/db.192.0.2 (2.0.192.IN-ADDR.ARPA)

@@ -3,6 +3,7 @@ SAVEHOST=192.168.51.1
 FTPPATH=/dat/sicher/conf
 AWK=/usr/bin/awk
 SAVESCRIPT=./tftpout.sh.sample
+MAKEZONE_POSTPROCESS_COMMAND=$(AWK) -f beautify.awk
 
 
 SCRIPTS=Makefile makezone beautify.awk $(SAVESCRIPT) make-localhost \
@@ -38,7 +39,9 @@ nameserver: db.example Makefile $(CONFS)
 
 db.example: example.src $(SCRIPTS)
 	cp example.src example.src.old
-	env AWK=$(AWK) ./makezone -short example.src \
+	env \
+		MAKEZONE_POSTPROCESS_COMMAND='$(MAKEZONE_POSTPROCESS_COMMAND)' \
+		./makezone -short example.src \
 		-f lab.example.org                            db.org.example.lab                           \
 		-f sub.lab.example.org                        db.org.example.lab.sub                       \
 		-r 192.0.2.0/24                               db.192.0.2.0.24                              \

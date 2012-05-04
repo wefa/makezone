@@ -1,19 +1,19 @@
 ; Domainsource lab.example.org
 $TTL 300
 @	300	IN	SOA	login.lab.example.org. me.lab.example.org. (
-				2011011701	;serial
+				2012050401	;serial
 				60		;Refresh
 				30		;Retry
 				604800		;Expire
 				300 )		;Minimum
-			IN	NS	  ns1.lab.example.org.
-			IN	NS	  ns2.lab.example.org.
-router			IN	AAAA	  2001:db8:1:0:0:0:0:1
-router-failover1	IN	AAAA	  2001:db8:1:0:0:0:0:2
-router-failover2	IN	AAAA	  2001:db8:1:0:0:0:0:3
+				IN	NS	ns1.lab.example.org.
+				IN	NS	ns2.lab.example.org.
+router    IN  AAAA  2001:db8:1:0:0:0:0:1
+router-failover1    IN  AAAA  2001:db8:1:0:0:0:0:2
+router-failover2    IN  AAAA  2001:db8:1:0:0:0:0:3
 ; forward-comment
-rr-comment		IN	AAAA	  2001:db8:1:0:0:0:0:4
-forward-only		IN	AAAA	  2001:db8:1:0:0:0:0:6
-foo1			IN	AAAA	  2001:db8:2:1234:0:0:0:1
-foo2			IN	AAAA	  2001:db8:2:5600:0:0:0:1
-foo3			IN	AAAA	  2001:db8:2:7890:abcd:ef01:2345:6789
+rr-comment    IN  AAAA  2001:db8:1:0:0:0:0:4
+forward-only    IN  AAAA  2001:db8:1:0:0:0:0:6
+foo1    IN  AAAA  2001:db8:2:1234:0:0:0:1
+foo2    IN  AAAA  2001:db8:2:5600:0:0:0:1
+foo3    IN  AAAA  2001:db8:2:7890:abcd:ef01:2345:6789

@@ -1,7 +1,7 @@
 #
 # /etc/hosts generated automatically by makehosts.awk
 # from named/makezone source file /home/rpolzer/work/makezone/tests/delegatee/src.tmp
-# at Tue Jan 11 12:09:28 CET 2011
+# at Fri May  4 17:02:09 CEST 2012
 # 
 192.168.16.1                           	host3.subdomain.lab.example.org host3
 192.168.16.254                         	host4.subdomain.lab.example.org host4

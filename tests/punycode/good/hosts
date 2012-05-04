@@ -1,7 +1,7 @@
 #
 # /etc/hosts generated automatically by makehosts.awk
 # from named/makezone source file /home/rpolzer/work/makezone/tests/punycode/src.tmp
-# at Wed Jan 12 16:53:45 CET 2011
+# at Fri May  4 17:02:09 CEST 2012
 # 
 192.0.2.1                              	abcdef.lab.example.org abcdef
 192.0.2.2                              	abæcdöef.lab.example.org abæcdöef
