@@ -509,7 +509,11 @@ my $current_source_line;
 my $current_source_file;
 my $current_source_idx;
 
+use constant EXCEPTION_PREFIX => "eXCEPTION: ";
+use constant EXCEPTION_SUFFIX => "\n";
 $SIG{__DIE__} = sub {
+    return
+        if EXCEPTION_PREFIX eq substr $_[0], 0, length EXCEPTION_PREFIX;
     &remove_temps();
     print "\n** Makezones: $_[0]";
     if ( defined $current_source_line and $current_source_line > 0 ) {
@@ -544,6 +548,10 @@ $SIG{__WARN__} = sub {
     }
 };
 
+use constant EXCEPTION_ERROR => EXCEPTION_PREFIX . "ERROR" . EXCEPTION_SUFFIX;
+
+our $error_exception = undef;
+
 sub error {
     if($debug) {
         Carp::cluck @_, "\n";
@@ -554,6 +562,25 @@ sub error {
         &remove_temps();
         die "\n** Makezones: too many errors - processing abandoned.\n\n";
     }
+    die $error_exception
+        if defined $error_exception;
+}
+
+sub leave_on_error(&)
+{
+    my $ret = undef;
+    eval {
+        local $error_exception = EXCEPTION_ERROR;
+        $ret = $_[0]->();
+        1;
+    } or do {
+        if($@ eq EXCEPTION_ERROR) {
+            return undef;
+        } else {
+            die $@;
+        }
+    };
+    return $ret;
 }
 
 ##################################################
@@ -2262,89 +2289,91 @@ sub generate_soa($) {
         if (/^;/) { &handle_comment(); next; }
         next if /^\s*$/;
         last if /^\S/;
-
         my ( $ttl, $class, $ns, $rest ) =
           /^\s+(\d+\s+|)(IN\s+|)NS\s+(\S+)(|\s+.+)$/;
         last if $ns eq "";
-        &check_fqn( $ns, "NS" );
 
-        $rest =~ s/^\s+//;          # strip leading white space
-        $rest =~ s/\s*(;.*)?$//;    # strip trailing spaces and comments & NL
-        if ( $rest eq "" ) {
-            &print_forward($_);
-            &print_reverse($_);
-        }
-        else {
-            while ( $rest ne "" ) {
-                ( my $zone, $rest ) = split( /\s+/, $rest, 2 );
-                $rest = ""
-                    if not defined $rest;
+        leave_on_error {
+            &check_fqn( $ns, "NS" );
 
-                my $do_ns = sub {
-                    my ( $params, $addr, $prefixlen ) = @_;
+            $rest =~ s/^\s+//;          # strip leading white space
+            $rest =~ s/\s*(;.*)?$//;    # strip trailing spaces and comments & NL
+            if ( $rest eq "" ) {
+                &print_forward($_);
+                &print_reverse($_);
+            }
+            else {
+                while ( $rest ne "" ) {
+                    ( my $zone, $rest ) = split( /\s+/, $rest, 2 );
+                    $rest = ""
+                        if not defined $rest;
 
-                    my ($i);
-                    &error("bad prefix length $prefixlen")
-                      if ( $prefixlen % $params->{revbits}
-                        || $prefixlen <= 0
-                        || $prefixlen >= $params->{words} * $params->{bits} );
-                    my @addr = parse_ip $params, $addr;
-                    {
-                        for ( $i = 0 ;
-                            $i < scalar @{ $params->{rzone} } ; $i++ )
+                    my $do_ns = sub {
+                        my ( $params, $addr, $prefixlen ) = @_;
+
+                        my ($i);
+                        &error("bad prefix length $prefixlen")
+                          if ( $prefixlen % $params->{revbits}
+                            || $prefixlen <= 0
+                            || $prefixlen >= $params->{words} * $params->{bits} );
+                        my @addr = parse_ip $params, $addr;
                         {
-                            if (
-                                $prefixlen == $params->{rzone}[$i]{prefixlen}
-                                && match_prefix_ip $params, \@addr,
-                                $params->{rzone}[$i]{prefix}, $params->{words} * $params->{bits}
-                              )
+                            for ( $i = 0 ;
+                                $i < scalar @{ $params->{rzone} } ; $i++ )
                             {
-                                my ($handle) = $params->{rzone}[$i]{handle};
-                                print $handle "  $ttl  $class  NS  $ns\n";
-                                last;
+                                if (
+                                    $prefixlen == $params->{rzone}[$i]{prefixlen}
+                                    && match_prefix_ip $params, \@addr,
+                                    $params->{rzone}[$i]{prefix}, $params->{words} * $params->{bits}
+                                  )
+                                {
+                                    my ($handle) = $params->{rzone}[$i]{handle};
+                                    print $handle "  $ttl  $class  NS  $ns\n";
+                                    last;
+                                }
                             }
+                            &error("unknown network number on NS record")
+                              if $i >= scalar @{ $params->{rzone} };
                         }
-                        &error("unknown network number on NS record")
-                          if $i >= scalar @{ $params->{rzone} };
-                    }
-                };
+                    };
 
-                if (
-                    defined(
-                        my $i = [
-                            grep { $zone eq $zone[$_]{name} }
-                              0 .. scalar @zone - 1
-                          ]->[0]
-                    )
-                  )
-                {
-                    my $h = $zone[$i]{handle};
-                    print $h "  $ttl  $class  NS  $ns\n";
-                }
-                elsif ( $zone =~ /(.*:.*)\/(\d+)/ )    # IPv6
-                {
-                    $do_ns->( $ipv6_params, $1, $2 );
-                }
-                elsif ( $zone =~
-                    /^(\d+)(?:\.(\d+)(?:\.(\d+)(?:\.(\d+))?)?)?(?:\/(\d+))?$/ )
-                {
-                    my ( $a, $b, $c, $d, $prefixlen ) = (
-                        $1,
-                        $2 || 0,
-                        $3 || 0,
-                        $4 || 0,
-                        $5
-                          || (
-                              $4 ? 32
-                            : $3 ? 24
-                            : $2 ? 16
-                            : 8
-                          )
-                    );
-                    $do_ns->( $ipv4_params, "$a.$b.$c.$d", $prefixlen );
+                    if (
+                        defined(
+                            my $i = [
+                                grep { $zone eq $zone[$_]{name} }
+                                  0 .. scalar @zone - 1
+                              ]->[0]
+                        )
+                      )
+                    {
+                        my $h = $zone[$i]{handle};
+                        print $h "  $ttl  $class  NS  $ns\n";
+                    }
+                    elsif ( $zone =~ /(.*:.*)\/(\d+)/ )    # IPv6
+                    {
+                        $do_ns->( $ipv6_params, $1, $2 );
+                    }
+                    elsif ( $zone =~
+                        /^(\d+)(?:\.(\d+)(?:\.(\d+)(?:\.(\d+))?)?)?(?:\/(\d+))?$/ )
+                    {
+                        my ( $a, $b, $c, $d, $prefixlen ) = (
+                            $1,
+                            $2 || 0,
+                            $3 || 0,
+                            $4 || 0,
+                            $5
+                              || (
+                                  $4 ? 32
+                                : $3 ? 24
+                                : $2 ? 16
+                                : 8
+                              )
+                        );
+                        $do_ns->( $ipv4_params, "$a.$b.$c.$d", $prefixlen );
+                    }
                 }
             }
-        }
+        };
     }
 
     close $source;
@@ -2400,13 +2429,15 @@ sub generate_zones($) {
     # those characters that can legally begin a line.
 
     for ( ; ; ) {
-        if ( !/^\s*$/ ) {
-            if ( !/^[\[\s\d_a-zA-Z\;>\"@\*]/ ) {
-                &error("invalid line - semicolon omitted?");
+        leave_on_error {
+            if ( !/^\s*$/ ) {
+                if ( !/^[\[\s\d_a-zA-Z\;>\"@\*]/ ) {
+                    &error("invalid line - semicolon omitted?");
+                }
+                elsif ( substr( $_, 0, 1 ) eq ";" ) { &handle_comment(); }
+                else                                { &handle_record($source); }
             }
-            elsif ( substr( $_, 0, 1 ) eq ";" ) { &handle_comment(); }
-            else                                { &handle_record($source); }
-        }
+        };
         last if !( $_ = getline $source );
         $current_source_line++;
     }
