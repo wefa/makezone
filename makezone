@@ -10,24 +10,30 @@ our $version_number = "0.23 [12-APR-12]";
 #                           MAKEZONES                                  #
 ########################################################################
 
-# Copyright (c), University of Cambridge, 1993, 1994, 1996
+# Copyright (C) 2011-2012  Rudolf Polzer
+# Copyright (C) 2010  Christoph Weber-Fahr
+# Copyright (C) University of Cambridge, 1993, 1994, 1996
 #
-# The University retains the copyright and all other legal rights
-# to this software and makes it available non-exclusively. All users
-# must ensure that the software in all its derivations carries a
-# copyright notice as above. No warranty is expressed or implied.
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program; if not, write to the Free Software Foundation, Inc.,
+# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-# This file is available for anonymous ftp from
+# This file was originally written by Philip Hazel.
 #
-# ftp.cus.cam.ac.uk:/pub/software/programs/DNS/makezones
-#
-# Enquires to Philip Hazel <ph10@cus.cam.ac.uk>.
-#
-# This version has been modified for CIDR network support
+# It has been modified for CIDR network support
 # by Christoph Weber-Fahr <wefa@gmx.de>
-#
-# This version has been modified for IPv6 support
-# by Rudolf Polzer <rpolzer@mucke-novak.de>
+# and for IPv6 support
+# by Rudolf Polzer <rpolzer@one-it.de>
 
 ########################################################################
 # CONFIGURATION VARIABLES
@@ -180,12 +186,12 @@ my $all_wildcards = 1;
 #     and comment lines), and must be set up so that each numeric parameter is
 #     on a separate line. For example:
 #
-#     @    IN    SOA    cus.cam.ac.uk. hostmaster.ucs.cam.ac.uk. (
-#                             1993080601      ; Serial
-#                             10800           ; Refresh 3 hours
-#                             3600            ; Retry 1 hour
-#                             604800          ; Expire after a week
-#                             86400 )         ; Minimum ttl
+#     @	300	IN	SOA	login.lab.example.org. me.lab.example.org. (
+#     				2011010742	;serial
+#     				60		;Refresh
+#     				30		;Retry
+#     				604800		;Expire
+#     				300 )		;Minimum
 #
 #     Makezones insists that the serial number be in this date-derived form.
 #     Note that the serial number begins with the full year number, not just
@@ -425,7 +431,7 @@ my $all_wildcards = 1;
 # day's date.
 #
 #
-# Written by Philip Hazel <ph10@cus.cam.ac.uk>
+# Written by Philip Hazel
 #   University Computing Service
 #   Computer Laboratory
 #   New Museums Site
@@ -434,10 +440,11 @@ my $all_wildcards = 1;
 #   +44 1223 334714
 #
 # Enhancements for non-octet subnet masks and some minor
-# changes by Christoph Weber-Fahr <wefa@gmx.de>
+# changes by Christoph Weber-Fahr <wefa@gmx.de> and
+# Rudolf Polzer <rpolzer@one-it.de>
 #
 # Started: August 1993
-# Running: September 1993
+# Running: April 2012
 #
 # Update history:
 #   0.03   07-Sep-93  I'd forgotten to allow TTLs on SOA records.
