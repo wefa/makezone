@@ -311,7 +311,7 @@ my $all_wildcards = 1;
 #     that would otherwise occur. (They naturally won't get into any reverse
 #     zones.) The special my address 127.0.0.1 is recognized and treated as
 #     though ">E " is always present. The ">E " flag can be used on WKS
-#     records as well as on A records.
+#     records as well as on A records. The ">E " flag implies the ">F " flag.
 #
 #   . The name given for PTR records must be a complete, reversed IP address
 #     that corresponds to one of the reverse zones. The network portion of
@@ -364,6 +364,9 @@ my $all_wildcards = 1;
 #     record.
 #
 #   . MX records must point to fully qualified names.
+#
+#   . The special line ">Z zone.name." can change the default zone following
+#     names will refer to.
 #
 #
 # Makezones is run by a command of the following form:
