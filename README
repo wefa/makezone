@@ -1,0 +1,15 @@
+Welcome to makezone
+
+makezone is a tool for automatic zone file maintenance and synchronization
+
+It was originally developed by  Philip Hazel from Cambridge University 
+(of Exim fame). 
+
+We took it over for various internal uses in the mid-nineties, and finally 
+added structured v6-support and various enhancements, as need arose.
+
+Phil graciously permitted us to rerelease this version, since his own 
+had not seen updates in a decade. 
+
+for questions/updates contact Christoph Weber-Fahr (cwf-ml@arcor.de)
+
